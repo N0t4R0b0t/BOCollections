@@ -79,6 +79,11 @@ bocollections_deploy_release() {
   tar -xzf "$tmp_frontend" -C /opt/bocollections/frontend
   rm -f "$tmp_frontend"
   chown -R bocollections:bocollections /opt/bocollections
+  # /opt/bocollections is the bocollections system user's home dir (0750 by default) — nginx
+  # (www-data, not in that group) needs traversal into it and read+traverse on the frontend
+  # bundle to serve it at all. See the matching comment in install/bocollections-install.sh.
+  chmod 755 /opt/bocollections
+  chmod -R a+rX /opt/bocollections/frontend
   echo "$version" >"$HOME/.bocollections"
   msg_ok "Deployed BOCollections ${version}"
 }

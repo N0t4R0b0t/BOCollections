@@ -102,15 +102,23 @@ EXPORT_SCHEDULE_ENABLED=true
 EXPORT_SCHEDULE_INTERVAL_MS=86400000
 EXPORT_SCHEDULE_DIRECTORY=/opt/bocollections/data/backups
 # Vision AI (scan/thrift photo recognition) is disabled by default — point OLLAMA_BASE_URL at an
-# existing Ollama server on your network (or set up Gemini via app.vision.endpoints, which isn't
-# env-var driven — see backend/src/main/resources/application-local.yml in the repo for the
-# multi-endpoint YAML shape) then: systemctl restart bocollections-backend
+# existing Ollama server on your network, or set up a Gemini (or additional Ollama) endpoint via
+# the APP_VISION_ENDPOINTS_<n>_<FIELD> indexed env vars — see docs/deployment.md#vision-endpoints
+# in the repo — then: systemctl restart bocollections-backend
 #OLLAMA_BASE_URL=http://192.168.1.x:11434
 #VISION_MODEL=llava-phi3
 EOF
 chmod 640 /etc/bocollections/bocollections.env
 chown root:bocollections /etc/bocollections/bocollections.env
 chown -R bocollections:bocollections /opt/bocollections
+# useradd --create-home leaves /opt/bocollections at 0750 (owner rwx, group rx, other none) since
+# it's the bocollections system user's home dir — that blocks nginx (running as www-data, not in
+# the bocollections group) from even stat()'ing into frontend/, producing a 500 on every request
+# ("Permission denied" in the nginx error log, not an application error). Open traversal on the
+# home dir itself and read+traverse on the served frontend bundle; leave data/ (scan photos,
+# backups) untouched — nginx never serves that directly, only the backend does, authenticated.
+chmod 755 /opt/bocollections
+chmod -R a+rX /opt/bocollections/frontend
 msg_ok "Configured BOCollections"
 
 msg_info "Configuring Nginx"
