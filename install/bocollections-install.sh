@@ -92,6 +92,12 @@ RABBITMQ_USERNAME=collections
 RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 REDIS_HOST=127.0.0.1
 JWT_SECRET=${JWT_SECRET}
+# Almost certainly wrong for your setup — this must exactly match the origin(s) (protocol +
+# host + port) your browser actually loads the app from, e.g. http://${IP} or a reverse-proxied
+# domain like https://boc.example.com. A mismatch fails silently as a 403 on every POST/PUT/PATCH/
+# DELETE (register, login, everything) with nothing in the app's own logs pointing at CORS —
+# comma-separated, no spaces, no trailing slash; see the SecurityConfiguration.allowedOrigins
+# quirk in CLAUDE.md. Edit this and `systemctl restart bocollections-backend` after install.
 CORS_ALLOWED_ORIGINS=http://localhost
 STORAGE_LOCAL_PATH=/opt/bocollections/data/scan-photos
 # Daily backup: a self-contained JSON file per collection (photos embedded as base64) written to

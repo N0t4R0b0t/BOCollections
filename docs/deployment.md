@@ -129,6 +129,7 @@ vision needs explicit setup.
 | `EXPORT_SCHEDULE_DIRECTORY` | `./exports` (`/opt/bocollections/data/backups` on the LXC) | Where backup files land |
 | `JWT_SECRET` | dev default | **Change this in production** — the LXC installer generates a random one automatically |
 | `DB_PASSWORD` | `collections` | Postgres password — also auto-generated on the LXC install |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost` on the LXC install | **Almost always needs changing.** Must exactly match the origin(s) — protocol + host + port — your browser actually loads the app from (e.g. `http://<lxc-ip>` or a reverse-proxied `https://your-domain`). Comma-separated, no spaces, no trailing slash. A mismatch fails *silently* as a 403 on every POST/PUT/PATCH/DELETE (register, login, everything) with nothing in the backend's own logs pointing at CORS — see the `SecurityConfiguration.allowedOrigins` quirk in `CLAUDE.md` (it's bound with `@Value` on a single string, not a YAML list) |
 
 **Vision AI is disabled by default** on a fresh LXC install — installing a real GPU-backed model
 inside the container is its own project. Point `OLLAMA_BASE_URL` at an existing Ollama server on
