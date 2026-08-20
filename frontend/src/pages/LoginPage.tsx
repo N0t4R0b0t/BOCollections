@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { BookOpen, Music, Film, Gamepad2 } from 'lucide-react';
+import { isNativePlatform } from '../utils/platform';
+import { getServerUrl } from '../utils/serverUrl';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -68,6 +70,13 @@ export function LoginPage() {
           No account?{' '}
           <Link to="/register" className="text-indigo-600 hover:underline font-medium">Register</Link>
         </p>
+
+        {isNativePlatform() && (
+          <p className="text-center text-xs text-gray-400 mt-3">
+            Server: {getServerUrl()}{' '}
+            <Link to="/connect" className="text-indigo-600 hover:underline">Change</Link>
+          </p>
+        )}
       </div>
     </div>
   );

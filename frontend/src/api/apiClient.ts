@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { isNativePlatform } from '../utils/platform';
+import { getServerUrl } from '../utils/serverUrl';
 import type { AuthResponse, Collection, CollectionEntry, CollectionExport, Item, ItemFacets, ItemFilters, MediaCategory, Page } from '../types';
 import type { LookupResult, ScanVerifyResponse, ExtractResponse } from '../types/scan';
 import type { ThriftScanResponse } from '../types/thrift';
@@ -21,7 +23,24 @@ const VISION_TIMEOUT_MS = 110_000;
 // not a slow/broken analysis).
 const SHELF_VISION_TIMEOUT_MS = 180_000;
 
-const http = axios.create({ baseURL: '/api', timeout: DEFAULT_TIMEOUT_MS });
+// Web is always served by the same origin as the API (nginx/Vite proxy /api → backend), so a
+// relative baseURL just works. The native app shell has no such origin — its WebView loads a
+// locally bundled build with nothing behind it — so on native the user-configured server URL
+// (set on ConnectServerPage, persisted via utils/serverUrl) becomes the actual host.
+function resolveBaseUrl(): string {
+  if (isNativePlatform()) {
+    const serverUrl = getServerUrl();
+    return serverUrl ? `${serverUrl}/api` : '/api';
+  }
+  return '/api';
+}
+
+const http = axios.create({ baseURL: resolveBaseUrl(), timeout: DEFAULT_TIMEOUT_MS });
+
+/** Called after the user sets/changes the server URL on ConnectServerPage — no app reload needed. */
+export function updateApiBaseUrl(): void {
+  http.defaults.baseURL = resolveBaseUrl();
+}
 
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');

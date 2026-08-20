@@ -4,6 +4,8 @@ import { useAuthStore } from './store/authStore';
 import { reportBootDiagnostic } from './utils/bootDiagnostics';
 import { isNativePlatform } from './utils/platform';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { RequireServerUrl } from './components/RequireServerUrl';
+import { ConnectServerPage } from './pages/ConnectServerPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { CollectionsPage } from './pages/CollectionsPage';
@@ -29,8 +31,9 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/connect" element={<ConnectServerPage />} />
+        <Route path="/login" element={<RequireServerUrl><LoginPage /></RequireServerUrl>} />
+        <Route path="/register" element={<RequireServerUrl><RegisterPage /></RequireServerUrl>} />
         <Route path="/" element={<Navigate to="/collections" replace />} />
 
         <Route path="/collections" element={<ProtectedRoute><CollectionsPage /></ProtectedRoute>} />
