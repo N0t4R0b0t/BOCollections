@@ -55,7 +55,14 @@ http.interceptors.response.use(
       const refresh = localStorage.getItem('refreshToken');
       if (refresh) {
         try {
-          const res = await axios.post('/api/auth/refresh', { refreshToken: refresh });
+          // Bare axios, not `http` — deliberately bypasses this same interceptor chain (a failed
+          // refresh must not recursively trigger another refresh attempt) and must still resolve
+          // against the real configured server (resolveBaseUrl(), not a hardcoded /api): on
+          // native there's no same-origin backend behind the WebView's fixed https://localhost,
+          // so a request with no baseURL at all silently went nowhere real, leaving every 401
+          // stuck retrying forever instead of ever reaching /login. Confirmed live on Android:
+          // an hour-old expired access token left every page spinning indefinitely.
+          const res = await axios.post(`${resolveBaseUrl()}/auth/refresh`, { refreshToken: refresh });
           localStorage.setItem('accessToken', res.data.accessToken);
           localStorage.setItem('refreshToken', res.data.refreshToken);
           error.config.headers.Authorization = `Bearer ${res.data.accessToken}`;
