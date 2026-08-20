@@ -1,0 +1,108 @@
+spring:
+  application:
+    name: bocollections-backend
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 25
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:collections}?stringtype=unspecified
+    username: ${DB_USERNAME:collections}
+    password: ${DB_PASSWORD:collections}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  flyway:
+    validate-on-migrate: false
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: public
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:collections}
+    password: ${RABBITMQ_PASSWORD:collections}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  ai:
+    retry:
+      max-attempts: 1
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: qwen2.5:14b
+
+server:
+  servlet:
+    context-path: /api
+  tomcat:
+    max-http-form-post-size: -1  # allow large JSON bodies (base64 images)
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-at-least-256-bits-long-secret-key}
+    access-token-expiry-ms: 3600000
+    refresh-token-expiry-ms: 604800000
+  vision:
+    model: ${VISION_MODEL:llava-phi3}  # any Ollama vision model: llava:7b, moondream, llava-phi3
+    # Per-task overrides — each defaults to app.vision.model, so setting nothing changes nothing.
+    # Worth pointing at a smaller/faster model for verify (quick yes/no match) or a bigger/more
+    # capable one for shelf (multi-item spatial detection) if you have more than one pulled.
+    verify-model: ${VISION_VERIFY_MODEL:${app.vision.model}}
+    extract-model: ${VISION_EXTRACT_MODEL:${app.vision.model}}
+    shelf-model: ${VISION_SHELF_MODEL:${app.vision.model}}
+  discogs:
+    token: ${DISCOGS_TOKEN:}           # optional: https://www.discogs.com/settings/developers
+  tmdb:
+    api-key: ${TMDB_API_KEY:}          # optional: https://developer.themoviedb.org
+  ebay:
+    client-id: ${EBAY_CLIENT_ID:}      # optional: https://developer.ebay.com (production keyset)
+    client-secret: ${EBAY_CLIENT_SECRET:}
+  igdb:
+    client-id: ${IGDB_CLIENT_ID:}      # optional: https://dev.twitch.tv/console/apps
+    client-secret: ${IGDB_CLIENT_SECRET:}
+  thegamesdb:
+    api-key: ${THEGAMESDB_API_KEY:}    # optional: https://forums.thegamesdb.net/viewforum.php?f=10 (manual approval)
+  storage:
+    mode: ${STORAGE_MODE:local}        # local (default) or s3
+    local-path: ${STORAGE_LOCAL_PATH:./data/scan-photos}
+    s3:
+      region: ${STORAGE_S3_REGION:us-east-1}
+      bucket: ${STORAGE_S3_BUCKET:}
+      public-base-url: ${STORAGE_S3_PUBLIC_BASE_URL:}
+  export:
+    scheduled:
+      # Off by default — a background backup job writing to disk on every instance isn't
+      # something to turn on silently. Every collection (all users) gets its own JSON file
+      # (photos embedded as base64, same shape as the on-demand GET .../export/json endpoint),
+      # overwritten in place each run — a rolling snapshot, not a growing history of every run.
+      enabled: ${EXPORT_SCHEDULE_ENABLED:false}
+      interval-ms: ${EXPORT_SCHEDULE_INTERVAL_MS:86400000}   # default: once a day
+      directory: ${EXPORT_SCHEDULE_DIRECTORY:./exports}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

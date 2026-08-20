@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BOCollections</string>
+    <string name="title_activity_main">BOCollections</string>
+    <string name="package_name">dev.rsalvador.bocollections</string>
+    <string name="custom_url_scheme">dev.rsalvador.bocollections</string>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Apps don't trust user-installed CA certificates by default (only system-trusted ones) — only
+  the OS-level browser does. boc-dev.nj-server2.local's cert is issued for a .local hostname,
+  which no public CA can issue for, so it's almost certainly from a private/internal CA that's
+  only trusted here because it was manually added as a trusted certificate on the device. This
+  extends that same trust to the app's own network requests (WebView navigation + fetch/XHR).
+-->
+<network-security-config>
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

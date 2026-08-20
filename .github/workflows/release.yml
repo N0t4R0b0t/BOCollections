@@ -1,0 +1,111 @@
+name: Release
+
+# Builds the backend jar + frontend static bundle and publishes them to Cloudflare R2 for the
+# LXC installer/updater (see ct/bocollections.sh, install/bocollections-install.sh) to fetch.
+# Triggered by pushing a version tag — deliberate, not every push to main, so the LXC update
+# path only ever deploys something explicitly tagged as shippable.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   R2_ACCOUNT_ID       Cloudflare account ID (dashboard URL: dash.cloudflare.com/<ACCOUNT_ID>)
+#   R2_ACCESS_KEY_ID    R2 API token access key (R2 → Manage API Tokens)
+#   R2_SECRET_ACCESS_KEY  R2 API token secret key
+# The bucket ("bocollections") and its public r2.dev URL are not secret and are inlined below.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  R2_BUCKET: bocollections
+  R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Build backend jar
+        working-directory: backend
+        run: ./gradlew bootJar -x test
+      - name: Rename to a stable artifact name
+        run: |
+          jar_path="$(find backend/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n1)"
+          mkdir -p artifacts
+          cp "$jar_path" artifacts/bocollections-backend.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: artifacts/bocollections-backend.jar
+          retention-days: 1
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Package dist as a tarball
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/bocollections-frontend.tar.gz -C frontend/dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-tarball
+          path: artifacts/bocollections-frontend.tar.gz
+          retention-days: 1
+
+  publish:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-jar
+          path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-tarball
+          path: artifacts
+      - name: Resolve version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >>"$GITHUB_OUTPUT"
+      - name: Install AWS CLI (R2 speaks the S3 API)
+        run: pip install --quiet awscli
+      - name: Upload release artifacts to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          dest="s3://${R2_BUCKET}/bocollections/releases/${VERSION}"
+          aws s3 cp artifacts/bocollections-backend.jar "${dest}/bocollections-backend.jar" \
+            --endpoint-url "$R2_ENDPOINT"
+          aws s3 cp artifacts/bocollections-frontend.tar.gz "${dest}/bocollections-frontend.tar.gz" \
+            --endpoint-url "$R2_ENDPOINT"
+          # Pointer file the installer/updater reads to discover the newest version — R2 has no
+          # release-listing API, so this plain-text object stands in for one.
+          echo -n "$VERSION" >latest.txt
+          aws s3 cp latest.txt "s3://${R2_BUCKET}/bocollections/releases/latest.txt" \
+            --endpoint-url "$R2_ENDPOINT" --content-type "text/plain"
+      - name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "### Published BOCollections ${VERSION} to R2" >>"$GITHUB_STEP_SUMMARY"
+          echo "- https://pub-73de8ecb4a9644fc8072f4e6bb9c700a.r2.dev/bocollections/releases/${VERSION}/bocollections-backend.jar" >>"$GITHUB_STEP_SUMMARY"
+          echo "- https://pub-73de8ecb4a9644fc8072f4e6bb9c700a.r2.dev/bocollections/releases/${VERSION}/bocollections-frontend.tar.gz" >>"$GITHUB_STEP_SUMMARY"

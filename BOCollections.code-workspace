@@ -1,0 +1,53 @@
+{
+  "folders": [
+    { "path": ".", "name": "BOCollections (root)" },
+    { "path": "backend", "name": "backend · Spring Boot" },
+    { "path": "frontend", "name": "frontend · React + Vite" }
+  ],
+  "settings": {
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.import.gradle.enabled": true,
+    "java.import.gradle.wrapper.enabled": true,
+    "java.compile.nullAnalysis.mode": "automatic",
+    "spring-boot.ls.problem.application-properties.UNKNOWN_PROPERTY_KEY": "IGNORE",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "[java]": {
+      "editor.defaultFormatter": "redhat.java"
+    },
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.gradle": true,
+      "**/build/classes": true,
+      "**/build/tmp": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/build": true,
+      "**/.gradle": true
+    },
+    "tailwindCSS.experimental.classRegex": [
+      ["clsx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+      ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+    ],
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "eslint.workingDirectories": [{ "directory": "frontend", "changeProcessCWD": true }]
+  },
+  "extensions": {
+    "recommendations": [
+      "vscjava.vscode-java-pack",
+      "vmware.vscode-spring-boot",
+      "vscjava.vscode-gradle",
+      "redhat.java",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss",
+      "ms-azuretools.vscode-docker",
+      "humao.rest-client",
+      "rangav.vscode-thunder-client",
+      "eamodio.gitlens",
+      "streetsidesoftware.code-spell-checker"
+    ]
+  }
+}

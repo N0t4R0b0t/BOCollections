@@ -1,0 +1,69 @@
+# ── Gradle ────────────────────────────────────────────────────────────────────
+.gradle/
+build/
+*.jar
+# gradle-wrapper.jar IS committed despite the *.jar rule above — CI (and anyone else's first
+# checkout) runs `./gradlew` with no other Gradle install available, and needs this jar to exist
+# already. The local "Setup: Install Gradle" VS Code task re-downloading it on top is harmless.
+!backend/gradle/wrapper/gradle-wrapper.jar
+
+# ── Java / IDE compiled output ────────────────────────────────────────────────
+# backend/bin/ is written by the VSCode Java (Eclipse) compiler — not source
+backend/bin/
+*.class
+
+# ── IntelliJ IDEA ─────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+dist/
+frontend/dist/
+frontend/node_modules/
+
+# ── Capacitor (Android/iOS wrapper) ───────────────────────────────────────────
+# Debug APK served through Vite's public/ dir for phone sideload installs — a build
+# artifact, not source. The generated android/ native project itself is intentionally
+# still tracked (kept close to hand for now while this is being actively worked on).
+frontend/public/*.apk
+frontend/android/.kotlin/
+
+# opencv.js (~9MB, bundled inside the jscanify package) is copied from node_modules into
+# public/vendor/ by the `postinstall` script so PhotoCropModal can lazy-load it same-origin —
+# a build artifact regenerated on every `npm install`, not source.
+frontend/public/vendor/
+
+# ── Secrets & local config ────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+application-local.yml
+application-local.properties
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Claude Code project memory ────────────────────────────────────────────────
+.claude/
+
+# ── Docker volume data ────────────────────────────────────────────────────────
+pgdata/
+redisdata/
+rabbitmqdata/
+
+# ── Local test footage ────────────────────────────────────────────────────────
+samples/
+
+# ── Local runtime data / crash dumps ──────────────────────────────────────────
+backend/data/
+core.[0-9]*

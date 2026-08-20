@@ -1,0 +1,374 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+
+    // ─── Setup ─────────────────────────────────────────────────────────────────
+
+    {
+      "label": "Setup: Check Prerequisites",
+      "detail": "Reports the status of every required dependency without installing anything",
+      "type": "shell",
+      "command": "echo '-- Java --'; command -v java >/dev/null && java -version || echo '✗ Java not found'; echo; echo '-- Gradle wrapper --'; (cd backend && ./gradlew --version 2>/dev/null) | grep -q 'Gradle 9' && echo '✓ Gradle wrapper distribution present' || echo '✗ Gradle wrapper distribution not downloaded yet'; echo; echo '-- Node --'; command -v node >/dev/null && node -v || echo '✗ Node not found'; echo; echo '-- Docker --'; command -v docker >/dev/null && docker --version && (docker compose version || echo '✗ Docker Compose plugin not found') || echo '✗ Docker not found'",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "setup",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Setup: Install Java 21",
+      "detail": "apt install openjdk-21-jdk (skips if already present)",
+      "type": "shell",
+      "command": "if command -v java >/dev/null && java -version 2>&1 | grep -q '\"21'; then echo '✓ Java 21 already installed'; else sudo apt-get update && sudo apt-get install -y openjdk-21-jdk && echo '✓ Java 21 installed'; fi",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "setup",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Setup: Install Node 20+",
+      "detail": "NodeSource setup script + apt install nodejs (skips if node >= 20 already present)",
+      "type": "shell",
+      "command": "if command -v node >/dev/null && [ \"$(node -v | sed 's/v//' | cut -d. -f1)\" -ge 20 ]; then echo '✓ Node already >= 20'; else curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs && echo '✓ Node 20 installed'; fi",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "setup",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Setup: Install Gradle",
+      "detail": "Downloads gradle-wrapper.jar (not committed to git) + bootstraps the pinned Gradle distribution (requires Java 21 first)",
+      "type": "shell",
+      "command": "if [ -f gradle/wrapper/gradle-wrapper.jar ]; then echo '✓ gradle-wrapper.jar already present'; else GRADLE_VERSION=$(grep -oP 'gradle-\\K[0-9.]+(?=-bin\\.zip)' gradle/wrapper/gradle-wrapper.properties); curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \"https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar\" && echo \"✓ downloaded gradle-wrapper.jar for Gradle ${GRADLE_VERSION}\"; fi && ./gradlew --version",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "setup",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Setup: Check Docker",
+      "detail": "Docker Engine & Compose plugin are installed on the host, not via this workspace — this only verifies presence",
+      "type": "shell",
+      "command": "if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then echo '✓ Docker & Compose plugin found'; else echo '✗ Docker not found — install from https://docs.docker.com/engine/install/ubuntu/'; fi",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "setup",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "🔧 Setup: Install All Dependencies",
+      "detail": "Java 21 → Gradle → Node 20+ → check Docker (run once before first use)",
+      "dependsOn": [
+        "Setup: Install Java 21",
+        "Setup: Install Gradle",
+        "Setup: Install Node 20+",
+        "Setup: Check Docker"
+      ],
+      "dependsOrder": "sequence",
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "setup" },
+      "problemMatcher": []
+    },
+
+    // ─── Infrastructure ────────────────────────────────────────────────────────
+
+    {
+      "label": "Infrastructure: Start",
+      "detail": "docker compose up -d  (Postgres :5433, Redis :6380, RabbitMQ :5672/:15672)",
+      "type": "shell",
+      "command": "docker compose up -d && echo '✓ Infrastructure started'",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "infra",
+        "focus": false
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Infrastructure: Stop",
+      "detail": "docker compose down",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "infra",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Infrastructure: Logs",
+      "detail": "Stream all container logs (Ctrl+C to stop)",
+      "type": "shell",
+      "command": "docker compose logs -f",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "infra",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Infrastructure: Status",
+      "detail": "docker compose ps",
+      "type": "shell",
+      "command": "docker compose ps",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    // ─── Phone access ──────────────────────────────────────────────────────────
+    // A phone testing the native app (see capacitor.config.ts's boc-dev.nj-server2.local
+    // server.url) can't reach Vite's :5173 directly — it's only bound inside this Coder
+    // workspace's container network. A tiny alpine/socat container relays the host's external
+    // :5173 into this workspace container's internal Docker IP. Recreated (not just started)
+    // every time, since that IP can change across workspace restarts.
+
+    {
+      "label": "Phone Proxy: Start",
+      "detail": "socat relay: external :5173 → this workspace container's :5173, for native-app live reload over boc-dev.nj-server2.local",
+      "type": "shell",
+      "command": "IP=$(docker inspect coder-N0t4R0b0t-bocollections --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}') && docker rm -f bocollections-phone-proxy >/dev/null 2>&1; docker run -d --name bocollections-phone-proxy -p 5173:5173 alpine/socat tcp-listen:5173,fork,reuseaddr tcp-connect:${IP}:5173 >/dev/null && echo \"✓ Phone proxy relaying :5173 → ${IP}:5173\"",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "infra",
+        "focus": false
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Phone Proxy: Stop",
+      "detail": "Removes the socat relay container",
+      "type": "shell",
+      "command": "docker rm -f bocollections-phone-proxy && echo '✓ Phone proxy stopped'",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "infra",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Phone Proxy: Status",
+      "detail": "docker ps for the socat relay container",
+      "type": "shell",
+      "command": "docker ps -a --filter name=bocollections-phone-proxy --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+
+    // ─── Backend ───────────────────────────────────────────────────────────────
+
+    {
+      "label": "Backend: Run",
+      "detail": "Starts Spring Boot on :8080 with profile=local",
+      "type": "shell",
+      "command": "./gradlew bootRun",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "app",
+        "focus": false
+      },
+      "problemMatcher": {
+        "owner": "spring-boot",
+        "pattern": { "regexp": "^(.*)$", "message": 1 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*Starting BocollectionsApplication.*$",
+          "endsPattern": "^.*Started BocollectionsApplication in.*$"
+        }
+      }
+    },
+
+    {
+      "label": "Backend: Run (Debug)",
+      "detail": "Starts Spring Boot with JDWP debug agent on :5005 (attach debugger separately)",
+      "type": "shell",
+      "command": "./gradlew bootRun",
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "env": {
+          "JAVA_TOOL_OPTIONS": "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+        }
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "app",
+        "focus": false
+      },
+      "problemMatcher": {
+        "owner": "spring-boot-debug",
+        "pattern": { "regexp": "^(.*)$", "message": 1 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*Listening for transport dt_socket.*$",
+          "endsPattern": "^.*Started BocollectionsApplication in.*$"
+        }
+      }
+    },
+
+    {
+      "label": "Backend: Build",
+      "detail": "Compiles and packages (skips tests)",
+      "type": "shell",
+      "command": "./gradlew build -x test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": { "kind": "build", "isDefault": false },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "build-out",
+        "focus": true
+      },
+      "problemMatcher": ["$gradle"]
+    },
+
+    {
+      "label": "Backend: Test",
+      "detail": "Runs JUnit tests (requires Postgres via Testcontainers or local DB)",
+      "type": "shell",
+      "command": "./gradlew test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "build-out",
+        "focus": true
+      },
+      "problemMatcher": ["$gradle"]
+    },
+
+    // ─── Frontend ──────────────────────────────────────────────────────────────
+
+    {
+      "label": "Frontend: Dev",
+      "detail": "Vite dev server on :5173 — proxies /api → :8080",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "app",
+        "focus": false
+      },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^(.*)$", "message": 1 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*VITE.*ready.*$",
+          "endsPattern": "^.*Local.*localhost:5173.*$"
+        }
+      }
+    },
+
+    {
+      "label": "Frontend: Build",
+      "detail": "TypeScript check + Vite production build → dist/",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "build-out",
+        "focus": true
+      },
+      "problemMatcher": ["$tsc"]
+    },
+
+    {
+      "label": "Frontend: Lint",
+      "detail": "ESLint check",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": ["$eslint-stylish"]
+    },
+
+    // ─── Compound ──────────────────────────────────────────────────────────────
+
+    {
+      "label": "⚡ Start: Full Stack",
+      "detail": "Infrastructure → Backend + Frontend + Phone Proxy (all in dedicated terminals)",
+      "dependsOn": ["Infrastructure: Start", "Start: App Layer"],
+      "dependsOrder": "sequence",
+      "presentation": { "reveal": "never" },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Start: App Layer",
+      "detail": "Backend + Frontend + Phone Proxy in parallel (internal use by Full Stack task)",
+      "dependsOn": ["Backend: Run", "Frontend: Dev", "Phone Proxy: Start"],
+      "dependsOrder": "parallel",
+      "presentation": { "reveal": "never" },
+      "problemMatcher": []
+    }
+
+  ]
+}

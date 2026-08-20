@@ -1,0 +1,93 @@
+### BOCollections API — REST Client scratch file
+### Usage: install "humao.rest-client" extension, then click "Send Request" above each call.
+
+@base = http://localhost:8080/api
+@token = {{login.response.body.accessToken}}
+
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+
+### Register
+# @name register
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "dev@test.com",
+  "password": "password",
+  "displayName": "Dev User"
+}
+
+###
+
+### Login
+# @name login
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "dev@test.com",
+  "password": "password"
+}
+
+###
+
+# ─── Collections ──────────────────────────────────────────────────────────────
+
+### List collections
+GET {{base}}/collections
+Authorization: Bearer {{token}}
+
+###
+
+### Create collection
+POST {{base}}/collections
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "My CDs",
+  "description": "Rock and electronic",
+  "primaryCategory": "AUDIO"
+}
+
+###
+
+# ─── Scan ─────────────────────────────────────────────────────────────────────
+
+### Barcode lookup — book (ISBN-13)
+GET {{base}}/scan/barcode/9780743273565
+Authorization: Bearer {{token}}
+
+###
+
+### Barcode lookup — vinyl UPC
+GET {{base}}/scan/barcode/602547284914
+Authorization: Bearer {{token}}
+
+###
+
+# ─── Thrift scan ──────────────────────────────────────────────────────────────
+
+### Thrift scan (replace imageBase64 with a real base64-encoded JPEG)
+POST {{base}}/thrift/scan
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageBase64": "...",
+  "imageMimeType": "image/jpeg",
+  "collectionIds": []
+}
+
+###
+
+# ─── Items ────────────────────────────────────────────────────────────────────
+
+### Search items
+GET {{base}}/items?q=abbey
+Authorization: Bearer {{token}}
+
+###
+
+### Actuator health
+GET {{base}}/../actuator/health

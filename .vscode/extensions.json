@@ -1,0 +1,23 @@
+{
+  "recommendations": [
+    // Java & Spring Boot
+    "vscjava.vscode-java-pack",       // Java Extension Pack (Language, Debugger, Test Runner, Maven/Gradle)
+    "vmware.vscode-spring-boot",      // Spring Boot Tools (live hover, beans, mappings)
+    "vscjava.vscode-gradle",          // Gradle for Java (task browser, build file support)
+
+    // Frontend
+    "dbaeumer.vscode-eslint",         // ESLint
+    "esbenp.prettier-vscode",         // Prettier formatter
+    "bradlc.vscode-tailwindcss",      // Tailwind CSS IntelliSense (class autocomplete + hover docs)
+
+    // API / HTTP
+    "humao.rest-client",              // .http file-based REST client — good for quick API checks
+
+    // Docker / infra
+    "ms-azuretools.vscode-docker",    // Docker explorer, compose file support
+
+    // General DX
+    "eamodio.gitlens",                // Git blame, history, comparisons
+    "streetsidesoftware.code-spell-checker"  // Typo detection in code & comments
+  ]
+}

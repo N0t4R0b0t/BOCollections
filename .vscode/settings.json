@@ -1,0 +1,73 @@
+{
+  // ─── Java / Spring Boot ─────────────────────────────────────────────────────
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.gradle.enabled": true,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.project.sourcePaths": ["backend/src/main/java", "backend/src/test/java"],
+  "java.project.referencedLibraries": ["backend/build/libs/**/*.jar"],
+  // Suppress noisy Spring Boot property warnings for local-only keys
+  "spring-boot.ls.problem.application-properties.UNKNOWN_PROPERTY_KEY": "IGNORE",
+
+  // ─── TypeScript / React ─────────────────────────────────────────────────────
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "eslint.workingDirectories": [{ "directory": "frontend", "changeProcessCWD": true }],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+
+  // ─── Tailwind CSS IntelliSense ───────────────────────────────────────────────
+  "tailwindCSS.rootFontSize": 16,
+  "tailwindCSS.experimental.classRegex": [
+    ["clsx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+  "tailwindCSS.includeLanguages": {
+    "typescriptreact": "html"
+  },
+
+  // ─── Editor ─────────────────────────────────────────────────────────────────
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java",
+    "editor.formatOnSave": true
+  },
+  "[javascript][typescript][typescriptreact][json][jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.rulers": [120],
+  "editor.bracketPairColorization.enabled": true,
+
+  // ─── File display ───────────────────────────────────────────────────────────
+  "files.exclude": {
+    "**/.gradle": true,
+    "**/build/classes": true,
+    "**/build/tmp": true,
+    "**/node_modules": true,
+    "**/.DS_Store": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/build": true,
+    "**/.gradle": true,
+    "**/dist": true
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/node_modules/**": true,
+    "**/build/**": true,
+    "**/.gradle/**": true
+  },
+
+  // ─── Docker ─────────────────────────────────────────────────────────────────
+  "docker.defaultRegistryPath": "",
+
+  // ─── Misc ───────────────────────────────────────────────────────────────────
+  "git.openRepositoryInParentFolders": "always",
+  "explorer.sortOrder": "type",
+  "terminal.integrated.defaultProfile.linux": "bash"
+}

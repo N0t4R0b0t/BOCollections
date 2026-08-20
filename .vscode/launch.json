@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+
+    // ─── Spring Boot — direct launch via Java extension ────────────────────────
+    // Requires: Java Extension Pack (vscjava.vscode-java-pack)
+    // Advantage: breakpoints work without a separate attach step.
+    {
+      "type": "java",
+      "name": "Spring Boot: Launch",
+      "request": "launch",
+      "mainClass": "com.bocollections.backend.BocollectionsApplication",
+      "projectName": "backend",
+      "args": ["--spring.profiles.active=local"],
+      "cwd": "${workspaceFolder}/backend",
+      "console": "integratedTerminal",
+      "vmArgs": "-Xmx512m"
+    },
+
+    // ─── Spring Boot — attach to running process ───────────────────────────────
+    // Use after running the "Backend: Run (Debug)" task, which starts the JDWP
+    // agent on port 5005.
+    {
+      "type": "java",
+      "name": "Spring Boot: Attach (port 5005)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    },
+
+    // ─── Chrome — debug React app ─────────────────────────────────────────────
+    // Requires: "Debugger for Chrome" or built-in JS debugger in VS Code 1.46+.
+    // Start the Frontend: Dev task first, then launch this.
+    {
+      "type": "chrome",
+      "name": "Chrome: localhost:5173",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMapPathOverrides": {
+        "webpack:///src/*": "${webRoot}/*"
+      }
+    }
+
+  ],
+
+  "compounds": [
+    // Starts the backend in debug mode and immediately attaches the debugger.
+    // Run "Backend: Run (Debug)" task first, then trigger this compound.
+    {
+      "name": "Spring Boot: Debug (launch + attach)",
+      "configurations": ["Spring Boot: Launch"]
+    }
+  ]
+}

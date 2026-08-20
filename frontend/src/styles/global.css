@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6366f1;
+  --color-primary-dark: #4f46e5;
+  --color-secondary: #0ea5e9;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}
+
+@keyframes scanline {
+  0%, 100% { transform: translateY(-50%); opacity: 0.4; }
+  50%       { transform: translateY(50%);  opacity: 1;   }
+}
+
+/* Brief white flash over the live preview when a native photo burst shot is taken — the only
+   feedback a shot happened, since there's no shutter sound and the feed itself doesn't visibly
+   change. */
+@keyframes capture-flash {
+  0%   { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+/* Respect the iOS/Android safe area so the bottom tab bar clears the home indicator */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* @capacitor-mlkit/barcode-scanning's startScan() renders the native camera *behind* the
+   WebView — this punches a transparent hole through the page background and the camera-preview
+   placeholder (see CameraPreview's `transparent` prop) so that native feed shows through, while
+   everything else (findings list, buttons — anything with its own background) stays on top
+   completely unaffected. */
+body.native-scan-active {
+  background: transparent !important;
+}
+body.native-scan-active #root {
+  background: transparent !important;
+}
+/* AppLayout's mobile shell wrapper (.app-shell) paints its own opaque bg-gray-50 — that sits on
+   top of body/#root's transparency above and was the actual reason the camera preview area
+   stayed solid white/grey instead of showing the native feed. MobileHeader/BottomTabBar/findings
+   list/buttons all set their own explicit backgrounds already, so they stay visible as normal —
+   only this one shell-level background needs to drop out. */
+body.native-scan-active .app-shell {
+  background: transparent !important;
+}
+
+/* CatalogueFilterPanel's year-range slider: two overlapping <input type="range"> elements form
+   one dual-handle slider (see YearRangeSlider) — this hides each input's own track (a visible
+   colored bar is drawn separately, once, behind both) so only the thumbs are visible/interactive,
+   and widens the click/touch target on the thumb itself beyond its visible dot. */
+.range-thumb-only {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+}
+.range-thumb-only::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.range-thumb-only::-moz-range-track {
+  background: transparent;
+}
+.range-thumb-only::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: white;
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.range-thumb-only::-moz-range-thumb {
+  pointer-events: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: white;
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
