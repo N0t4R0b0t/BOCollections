@@ -16,7 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Without this, Android Gradle Plugin falls back to an auto-generated ~/.android/debug.keystore
+    // that's different per machine (and per CI run, since it's never persisted there) — every build
+    // would be signed with a different key, and Android refuses to install an update over an
+    // existing app signed with a different one (has to be uninstalled first every time). Using a
+    // dedicated, checked-in keystore (not sensitive — this is a debug-only signing key, same
+    // default alias/password Android itself uses, never accepted for a real Play Store release)
+    // keeps every debug build — local or CI — signed identically so updates install in place.
+    signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

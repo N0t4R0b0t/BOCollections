@@ -29,7 +29,7 @@ export function MobileHeader() {
         {/* Debug APK sideload link — only useful in a plain browser, not inside the app itself */}
         {!isNativePlatform() && (
           <a
-            href="/bocollections-debug.apk"
+            href="https://pub-73de8ecb4a9644fc8072f4e6bb9c700a.r2.dev/bocollections/releases/latest/bocollections-debug.apk"
             download="bocollections-debug.apk"
             title="Download Android app (debug build)"
             className="text-gray-400 hover:text-indigo-600 transition-colors p-1"

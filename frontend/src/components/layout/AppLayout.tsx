@@ -88,7 +88,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </button>
           {!isNativePlatform() && (
             <a
-              href="/bocollections-debug.apk"
+              href="https://pub-73de8ecb4a9644fc8072f4e6bb9c700a.r2.dev/bocollections/releases/latest/bocollections-debug.apk"
               download="bocollections-debug.apk"
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors w-full mt-1"
             >

@@ -6,6 +6,7 @@ build/
 # checkout) runs `./gradlew` with no other Gradle install available, and needs this jar to exist
 # already. The local "Setup: Install Gradle" VS Code task re-downloading it on top is harmless.
 !backend/gradle/wrapper/gradle-wrapper.jar
+!frontend/android/gradle/wrapper/gradle-wrapper.jar
 
 # ── Java / IDE compiled output ────────────────────────────────────────────────
 # backend/bin/ is written by the VSCode Java (Eclipse) compiler — not source
