@@ -49,7 +49,9 @@ cd frontend && npm run dev
   — there is no `UserMessage(String, List<Media>)` constructor.
 - Ollama options class is `OllamaChatOptions` (not `OllamaOptions`).
 - Google GenAI autoconfiguration crashes on startup when `GEMINI_API_KEY` is empty.
-  Excluded in `application-local.yml` via `spring.autoconfigure.exclude`.
+  Excluded in the base `application.yml` via `spring.autoconfigure.exclude` — this bit a real
+  boot-loop on the Proxmox LXC once, since the exclusion originally lived only in
+  `application-local.yml` and the LXC's systemd service runs with no active profile at all.
 - Hibernate 7 auto-detects the PostgreSQL dialect — don't set `hibernate.dialect` explicitly
   or it logs a deprecation warning on every boot.
 - `SecurityConfiguration.allowedOrigins` is bound with `@Value`, not `@ConfigurationProperties`

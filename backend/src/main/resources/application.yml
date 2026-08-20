@@ -1,6 +1,14 @@
 spring:
   application:
     name: bocollections-backend
+  # VisualScanService builds both Ollama and Gemini ChatModels manually (see app.vision.endpoints
+  # below), so this autoconfiguration is never used — excluded so it can't crash startup when
+  # GEMINI_API_KEY is unset. See "Known Spring AI quirks" in CLAUDE.md. Belongs here, not just in
+  # application-local.yml — it's not a dev-only workaround, and a prod boot (no active profile,
+  # e.g. the Proxmox LXC's systemd service) would otherwise crash-loop on it too.
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.google.genai.autoconfigure.chat.GoogleGenAiChatAutoConfiguration
   jpa:
     hibernate:
       ddl-auto: validate
