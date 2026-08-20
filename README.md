@@ -125,7 +125,7 @@ All config lives in `backend/src/main/resources/application.yml`. Local override
 | `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` | *(empty)* | [Register a production app](https://developer.ebay.com/my/keys) — instant self-serve, but requires a *production* keyset (sandbox listing data is fake). Adds real listing photos (front/back/disc) for VIDEO and GAME barcodes |
 | `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` | *(empty)* | [Register a Twitch app](https://dev.twitch.tv/console/apps) — instant self-serve. Enables GAME title lookup + front cover art |
 | `THEGAMESDB_API_KEY` | *(empty)* | [Request a key](https://forums.thegamesdb.net/viewforum.php?f=10) — **not instant**, requires a manually-approved forum post describing your use case. Adds front *and* back GAME box art once approved |
-| `GEMINI_API_KEY` | *(empty)* | Wire into an `app.vision.endpoints` entry with `provider: gemini` to enable Gemini as a vision endpoint (mark it `primary: true` to prefer it over Ollama) |
+| `APP_VISION_ENDPOINTS_0_*` | *(unset — no endpoints)* | Defines a real Gemini (or additional Ollama) vision endpoint via Spring's indexed env-var binding, e.g. `APP_VISION_ENDPOINTS_0_PROVIDER=gemini` + `_API_KEY` + `_MODEL`. See [Vision endpoints](./docs/deployment.md#vision-endpoints) — a bare `GEMINI_API_KEY` alone does nothing on its own |
 | `JWT_SECRET` | local dev default | Change this in production |
 | `DB_PASSWORD` | `collections` | Postgres password |
 | `EXPORT_SCHEDULE_ENABLED` | `false` (`true` on the Proxmox LXC install) | Background daily backup — one self-contained JSON file per collection (photos embedded as base64), written to `EXPORT_SCHEDULE_DIRECTORY`, skipped when nothing's changed since the last one |

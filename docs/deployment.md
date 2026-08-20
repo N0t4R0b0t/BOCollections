@@ -116,9 +116,9 @@ vision needs explicit setup.
 
 | Environment variable | Default | Notes |
 |---|---|---|
-| `VISION_MODEL` | `llava-phi3` | Any Ollama vision model |
-| `OLLAMA_BASE_URL` | *(unset — vision disabled)* | Point at any reachable Ollama server |
-| `GEMINI_API_KEY` | *(empty)* | Hosted alternative/failover to Ollama |
+| `VISION_MODEL` | `llava-phi3` | Any Ollama vision model — used for the single-endpoint fallback below |
+| `OLLAMA_BASE_URL` | *(unset — vision disabled)* | Single-endpoint fallback: point at any reachable Ollama server. Only takes effect when `APP_VISION_ENDPOINTS_0_*` (below) isn't set |
+| `APP_VISION_ENDPOINTS_0_*` | *(unset — no endpoints)* | Defines `app.vision.endpoints[0]` via Spring's indexed env-var binding — see [Vision endpoints](#vision-endpoints) below. Required to enable Gemini; `GEMINI_API_KEY` alone does nothing on its own |
 | `DISCOGS_TOKEN` | *(empty)* | Improves audio barcode lookup |
 | `TMDB_API_KEY` | *(empty)* | Enables video metadata |
 | `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` | *(empty)* | Real listing photos for VIDEO/GAME — requires a *production* keyset |
@@ -132,7 +132,33 @@ vision needs explicit setup.
 
 **Vision AI is disabled by default** on a fresh LXC install — installing a real GPU-backed model
 inside the container is its own project. Point `OLLAMA_BASE_URL` at an existing Ollama server on
-your network, or set `GEMINI_API_KEY`, then `systemctl restart bocollections-backend`.
+your network, or set up a Gemini endpoint (below), then `systemctl restart bocollections-backend`.
+
+### Vision endpoints
+
+`app.vision.endpoints` (see [architecture.md](./architecture.md#vision-provider-abstraction-with-failover))
+is a real YAML list bound via `@ConfigurationProperties`, not a single flat variable — the base
+`application.yml` defines no endpoints at all by default (that's why `OLLAMA_BASE_URL` alone still
+works: with an empty list, `VisualScanService` falls back to one legacy Ollama endpoint built from
+it). Enabling **Gemini**, or any second/failover endpoint, means defining a full endpoint entry via
+Spring Boot's indexed environment-variable binding — `APP_VISION_ENDPOINTS_<index>_<FIELD>` maps to
+`app.vision.endpoints[<index>].<field>`. In `/etc/bocollections/bocollections.env`:
+
+```bash
+APP_VISION_ENDPOINTS_0_NAME=gemini
+APP_VISION_ENDPOINTS_0_PROVIDER=gemini
+APP_VISION_ENDPOINTS_0_API_KEY=your-gemini-api-key
+APP_VISION_ENDPOINTS_0_MODEL=gemini-2.5-flash
+
+# Optional second endpoint — an Ollama box as fallback if Gemini's endpoint fails:
+APP_VISION_ENDPOINTS_1_NAME=ollama-backup
+APP_VISION_ENDPOINTS_1_BASE_URL=http://10.0.0.x:11434
+APP_VISION_ENDPOINTS_1_MODEL=llava-phi3
+```
+
+`provider` defaults to `ollama` when omitted, so Ollama-only entries don't need it. Add
+`APP_VISION_ENDPOINTS_0_PRIMARY=true` to force one entry to the front of the failover order
+regardless of index. `systemctl restart bocollections-backend` after editing.
 
 ## Backups
 
