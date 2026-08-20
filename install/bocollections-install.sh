@@ -23,7 +23,10 @@ msg_ok "Installed Dependencies"
 JAVA_VERSION="21" setup_java
 
 PG_VERSION="15" setup_postgresql
-APPLICATION="$APP" PG_DB_NAME="collections" PG_DB_USER="collections" PG_DB_SCHEMA_PERMS="true" setup_postgresql_db
+# APPLICATION is already exported into the container by the framework's build_container
+# (as $APP from ct/bocollections.sh) — don't re-derive it from a bare $APP here, that variable
+# was never exported and trips `set -u` with "APP: unbound variable".
+PG_DB_NAME="collections" PG_DB_USER="collections" PG_DB_SCHEMA_PERMS="true" setup_postgresql_db
 # setup_postgresql_db defaults to native Postgres' own port (5432) — the app's own default of
 # 5433 only exists to match the docker-compose port *mapping* used in local dev, not relevant here.
 DB_PORT="5432"
