@@ -1,36 +1,66 @@
 # BOCollections
 
-A smart physical-media collection manager. Track books, magazines, CDs, vinyl, DVDs, Blu-ray, video games, and anything else that lives on a shelf. Inspired by Libib, built to go further.
+A self-hosted, smart physical-media collection manager. Track books, magazines, CDs, vinyl,
+cassettes, DVDs, Blu-ray, VHS, video games, and anything else that lives on a shelf — with
+AI-assisted bulk scanning at home and an in-store "do I already own this?" thrifting mode.
+Inspired by Libib, built to go further.
+
+## Documentation
+
+- **[docs/product-overview.md](./docs/product-overview.md)** — what the app is for and why its
+  features look the way they do (start here).
+- **[docs/architecture.md](./docs/architecture.md)** — technical reference: system diagram, data
+  model, backend/frontend patterns.
+- **[docs/deployment.md](./docs/deployment.md)** — release pipeline, Proxmox LXC install, full
+  configuration reference, backups.
+- **[docs/specs/](./docs/specs)** — pre-implementation design docs for specific features.
 
 ## What it does (current)
 
 - **Catalogue** — a shared item registry keyed by barcode/ISBN. One record per edition, not per copy.
 - **Collections** — named groups that belong to a user. An item can live in many collections.
 - **Duplicate detection** — barcodes are unique in the catalogue; `ItemResponse.duplicates[]` surfaces other editions with the same barcode so you can tell "same album, different pressing" from "exact same disc".
-- **Scanner** — point a webcam at an item:
-  - Barcode detected → looked up in the catalogue, then Open Library / MusicBrainz / Discogs / TMDB.
-  - `llava-phi3` visually confirms the found metadata matches what the camera sees.
-  - No readable barcode → guided capture (front · back · spine) → AI extracts metadata → editable review form.
+- **Bulk scan mode** — a session-based capture flow for cataloguing a stack of items at home: capture front/back/spine photos, hit Analyse, move to the next item without waiting — AI vision runs in the background and patches results onto the right draft even after you've moved on. Review drafts (with full photo galleries and match confidence) before approving them into a collection.
+- **Thrifting mode** — a fast in-store "do I already own this?" flow, split into **shelf mode** (photograph a whole shelf, get back a ranked, growing list of everything identified — tap a result to see an arrow pointing at exactly where it was spotted) and **held-item mode** (point-and-scan one item at a time). A taste-profile score flags unmatched items that fit your existing collections as "interesting."
+- **Catalogue filtering** — category/format/genre/year-range filters and sorting, built from whatever values actually exist in your catalogue rather than a fixed static list.
+- **Export, import & scheduled backups** — a styled Excel export (embedded cover thumbnails, per-metadata-key columns, filters) for browsing, and a self-contained JSON export (photos embedded as base64) for moving/restoring a collection. An optional scheduled task writes JSON backups on an interval, skipping the write when nothing's changed.
+- **Native Android app** — the same frontend, wrapped via Capacitor, swapping in a real ML Kit barcode scanner for more reliable in-hand scanning.
+
+See [docs/product-overview.md](./docs/product-overview.md) for the reasoning behind each of these.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    web["React SPA<br/>Vite + TypeScript + Tailwind 4 + Zustand"]
+    android["Native Android app<br/>(Capacitor)"]
+
+    subgraph server["Spring Boot 4 — :8080/api"]
+        api["REST API"]
+        vision["Vision layer<br/>Ollama (local) / Gemini — failover-ordered"]
+    end
+
+    pg[("PostgreSQL")]
+    redis[("Redis")]
+    mq[("RabbitMQ")]
+
+    web -->|REST/JSON| api
+    android -->|REST/JSON| api
+    api --> vision
+    api --> pg
+    api --> redis
+    api --> mq
+
+    classDef clientNode fill:#dbeafe,stroke:#3b82f6,stroke-width:1.5px,color:#1e3a8a
+    classDef serverNode fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+    classDef dataNode fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+    class web,android clientNode
+    class api,vision serverNode
+    class pg,redis,mq dataNode
 ```
-┌─────────────┐   REST/JSON   ┌──────────────────────────────┐
-│  React SPA  │ ────────────► │  Spring Boot 4  (:8080/api)  │
-│  Vite 7     │               │                              │
-│  Tailwind 4 │               │  ┌──────────┐ ┌──────────┐  │
-│  Zustand    │               │  │ Postgres │ │  Redis   │  │
-└─────────────┘               │  └──────────┘ └──────────┘  │
-                              │  ┌──────────┐               │
-                              │  │ RabbitMQ │  (async jobs) │
-                              │  └──────────┘               │
-                              │  ┌──────────────────────┐   │
-                              │  │  Ollama  (local LLM) │   │
-                              │  │  llava-phi3  vision  │   │
-                              │  │  qwen2.5:14b  text   │   │
-                              │  └──────────────────────┘   │
-                              └──────────────────────────────┘
-```
+
+See [docs/architecture.md](./docs/architecture.md) for the full system diagram, data model, and
+backend/frontend design patterns.
 
 ## Quick start
 
@@ -208,9 +238,9 @@ Items carry a `metadata` JSONB column for category-specific fields (authors, tra
    default cover is a real photo of the physical item rather than TMDB's promotional poster art
    whenever one's available
 
-## Scanner — browser requirements
+## Browser requirements
 
-The barcode detection loop uses the native [`BarcodeDetector`](https://developer.mozilla.org/en-US/docs/Web/API/Barcode_Detection_API) API. This requires **Chrome 83+ or Edge 83+**. Firefox and Safari fall back gracefully to guided-capture-only mode.
+The web barcode detection loop uses the native [`BarcodeDetector`](https://developer.mozilla.org/en-US/docs/Web/API/Barcode_Detection_API) API. This requires **Chrome 83+ or Edge 83+**. Firefox and Safari fall back gracefully to guided-capture-only mode. The native Android app uses ML Kit instead and isn't affected by this.
 
 ---
 
@@ -220,31 +250,47 @@ The barcode detection loop uses the native [`BarcodeDetector`](https://developer
 BOCollections/
 ├── backend/
 │   └── src/main/java/com/bocollections/backend/
-│       ├── config/          JWT filter, security, REST clients, Jackson
-│       ├── controller/      AuthController, CollectionController, ItemController, ScanController
-│       ├── dto/             Request/response POJOs (no domain logic)
-│       ├── entity/          JPA entities + MediaCategory enum
+│       ├── config/          JWT filter, security, REST clients, Jackson, scheduled-export properties
+│       ├── controller/      AuthController, CollectionController, ItemController,
+│       │                    ScanController, ScanSessionController, ThriftSessionController,
+│       │                    MediaController, DebugController
+│       ├── dto/             Request/response POJOs (no domain logic), incl. export/ and thrift/
+│       ├── entity/          JPA entities — Item, Collection, CollectionEntry, ScanSession,
+│       │                    ScanDraft, ThriftSession, ThriftSighting, photo galleries, …
 │       ├── exception/       NotFoundException, ConflictException, GlobalExceptionHandler
 │       ├── repository/      Spring Data JPA interfaces
 │       ├── service/
-│       │   ├── lookup/      OpenLibraryService, MusicBrainzService, DiscogsService, TmdbService
+│       │   ├── lookup/      OpenLibraryService, MusicBrainzService, DiscogsService, TmdbService,
+│       │   │                IgdbService, EbayService, TheGamesDbService, UpcItemDbService,
 │       │   │                MetadataLookupService (orchestrates the above)
+│       │   ├── storage/     StorageService abstraction — local disk / S3
 │       │   ├── AuthService, CollectionService, ItemService
-│       │   └── VisualScanService  (Ollama vision — verify + extract)
+│       │   ├── ScanSessionService              (bulk scan mode)
+│       │   ├── ThriftService, ThriftSessionService, TasteProfileService  (thrifting mode)
+│       │   ├── CollectionExportService, ScheduledCollectionExportTask    (Excel/JSON export, backups)
+│       │   └── VisualScanService  (Ollama/Gemini vision — verify + extract, failover-ordered)
 │       └── util/            JwtProvider
 ├── frontend/
+│   ├── android/              Capacitor-wrapped native Android app
 │   └── src/
-│       ├── api/             apiClient.ts — typed Axios wrapper
+│       ├── api/              apiClient.ts — typed Axios wrapper
 │       ├── components/
-│       │   ├── layout/      AppLayout (sidebar nav)
-│       │   ├── scanner/     CameraPreview, ScanResultCard, GuidedCapture
-│       │   └── ui/          Badge, Spinner
-│       ├── hooks/           useCamera, useBarcodeDetector
-│       ├── pages/           CollectionsPage, CollectionDetailPage, CataloguePage,
-│       │                    ItemDetailPage, ItemFormPage, ScannerPage,
-│       │                    LoginPage, RegisterPage
-│       ├── store/           authStore, collectionStore (Zustand)
-│       └── types/           index.ts (domain types), scan.ts, browser.d.ts
+│       │   ├── catalogue/    CatalogueFilterPanel
+│       │   ├── layout/       AppLayout, MobileHeader, BottomTabBar
+│       │   ├── scanner/      CameraPreview, ScanResultCard, GuidedCapture
+│       │   ├── thrift/       ThriftResultOverlay, BboxThumbnail, shelf/held-item panels
+│       │   └── ui/           Badge, Spinner, PhotoCropModal, PhotoThumbnail
+│       ├── hooks/             useCamera, useBarcodeDetector, useNativeBarcodeDetector,
+│       │                      useCaptureLoop, useHeldItemLoop, useMediaQuery
+│       ├── pages/              CollectionsPage, CollectionDetailPage, CataloguePage,
+│       │                       ItemDetailPage, ItemFormPage, AddPhotosPage,
+│       │                       ScanSessionsPage, ScanCapturePage, ScanReviewPage,
+│       │                       ThriftSessionsPage, ThriftCapturePage,
+│       │                       LoginPage, RegisterPage
+│       ├── store/               authStore, collectionStore (Zustand)
+│       └── types/               index.ts (domain types), scanSession.ts, thrift.ts, browser.d.ts
+├── ct/ · install/            Proxmox VE LXC deployment scripts — see docs/deployment.md
+├── docs/                     Product/architecture/deployment docs — see docs/README.md
 └── docker-compose.yml
 ```
 
