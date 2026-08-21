@@ -133,6 +133,30 @@ export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Opti
     setStatusTracked('paused');
   }, [setStatusTracked]);
 
+  /**
+   * The plugin exposes no focus API at all (no setFocus/focusMode/tap-to-focus on
+   * StartScanOptions — confirmed against v8.1.0's type definitions), so there's no direct knob
+   * for "the CameraX autofocus looks stuck". The only lever available from JS is restarting the
+   * scan session: CameraX re-runs its focus-metering pass on every startScan(), so a stop/start
+   * cycle reliably forces a fresh autofocus sweep even though it isn't a real "refocus" call.
+   * No-ops (rather than erroring) when not currently scanning or already mid-restart, so rapid
+   * repeat taps can't pile up overlapping stop/start races.
+   */
+  const refocusingRef = useRef(false);
+  const refocusScanner = useCallback(async () => {
+    if (statusRef.current !== 'scanning' || refocusingRef.current) return;
+    refocusingRef.current = true;
+    try {
+      await BarcodeScanner.stopScan();
+      await new Promise((r) => setTimeout(r, 300));
+      await startSession();
+    } catch (e) {
+      console.warn('[native-scanner] refocus (restart) failed', e);
+    } finally {
+      refocusingRef.current = false;
+    }
+  }, [startSession]);
+
   const resume = useCallback(async () => {
     if (statusRef.current !== 'paused') return;
     try {
@@ -168,5 +192,5 @@ export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Opti
     setBodyTransparent(false);
   }, []);
 
-  return { isSupported: true, status, moduleStatus, start, pause, resume };
+  return { isSupported: true, status, moduleStatus, start, pause, resume, refocusScanner };
 }

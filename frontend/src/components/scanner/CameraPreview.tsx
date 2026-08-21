@@ -25,10 +25,15 @@ interface Props {
    * stacked on top of each other) rather than a clean CSS override of one by the other.
    */
   fill?: boolean;
+  /** CSS `filter` applied to the live <video> (e.g. LOW_LIGHT_FILTER from useCamera) — only
+   * meaningful for a getUserMedia-backed preview; the native ML Kit scan view renders behind the
+   * WebView via a separate hardware surface this element never actually shows, so a filter here
+   * has nothing to visibly affect while `transparent` is set. */
+  filter?: string;
 }
 
 /** Live video element. The ref is forwarded so the parent can feed it to hooks. */
-export const CameraPreview = forwardRef<HTMLVideoElement, Props>(({ scanning, className, rotation = 0, onFocus, transparent, fill }, ref) => {
+export const CameraPreview = forwardRef<HTMLVideoElement, Props>(({ scanning, className, rotation = 0, onFocus, transparent, fill, filter }, ref) => {
   const portrait = rotation === 90 || rotation === 270;
   const [pulse, setPulse] = useState<{ x: number; y: number } | null>(null);
 
@@ -84,7 +89,7 @@ export const CameraPreview = forwardRef<HTMLVideoElement, Props>(({ scanning, cl
           transparent && 'opacity-0 pointer-events-none',
           portrait ? 'absolute top-1/2 left-1/2 h-full w-auto' : 'w-full h-full object-cover',
         )}
-        style={portrait ? { transform: `translate(-50%, -50%) rotate(${rotation}deg)` } : undefined}
+        style={{ ...(portrait ? { transform: `translate(-50%, -50%) rotate(${rotation}deg)` } : {}), filter }}
       />
 
       {/* Tap-to-focus feedback ring */}

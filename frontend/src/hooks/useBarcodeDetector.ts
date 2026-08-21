@@ -122,5 +122,11 @@ export function useBarcodeDetector(
   // Always 'ready' — zxing runs entirely client-side, no on-device model to download (unlike
   // the native ML Kit path, see useNativeBarcodeDetector's moduleStatus). Present here purely so
   // useScannerBarcodeDetector's return type is consistent regardless of which one is active.
-  return { isSupported: true, status, moduleStatus: 'ready' as const, start, pause, resume };
+  // No native equivalent needed here — the web/getUserMedia path already has its own tap-to-focus
+  // via useCamera's refocus (real MediaTrackConstraints, unlike the native plugin's restart-only
+  // workaround), so this just keeps the return shape aligned with useNativeBarcodeDetector for
+  // useScannerBarcodeDetector's callers to destructure without a branch-specific type error.
+  const refocusScanner = useCallback(async () => {}, []);
+
+  return { isSupported: true, status, moduleStatus: 'ready' as const, start, pause, resume, refocusScanner };
 }

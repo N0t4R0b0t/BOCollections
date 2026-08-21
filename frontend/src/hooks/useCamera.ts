@@ -18,6 +18,13 @@ interface FocusCapabilities {
 
 export interface FocusDistanceRange { min: number; max: number; step: number; }
 
+// A plain CSS filter, applied both live (as the <video>'s style, so the boost is visible while
+// framing the shot) and baked into captureFrame's canvas draw (via drawRotatedFrame's `filter`
+// param, so a saved photo matches what was on screen) — no per-pixel processing needed since the
+// browser's own compositor already does this in real time. Values picked for "dim room, not
+// pitch black": strong enough to matter, not so strong it blows out anything already lit.
+export const LOW_LIGHT_FILTER = 'brightness(1.5) contrast(1.15) saturate(1.1)';
+
 export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const streamRef = useRef<MediaStream | null>(null);
   const [ready, setReady] = useState(false);
@@ -30,6 +37,8 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
   // more reliable knob than hoping the browser's autofocus sweep ever kicks in.
   const [focusDistanceRange, setFocusDistanceRange] = useState<FocusDistanceRange | null>(null);
   const [focusDistanceValue, setFocusDistanceValue] = useState<number | null>(null);
+  const [lowLight, setLowLight] = useState(false);
+  const toggleLowLight = useCallback(() => setLowLight((v) => !v), []);
 
   const applyFocusMode = useCallback(async (mode: 'continuous' | 'single-shot') => {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -164,7 +173,7 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
     if (video.videoWidth === 0 || video.videoHeight === 0) return null;
 
     let canvas = document.createElement('canvas');
-    const ctx = drawRotatedFrame(video, canvas, rotation);
+    const ctx = drawRotatedFrame(video, canvas, rotation, lowLight ? LOW_LIGHT_FILTER : 'none');
     if (!ctx) return null;
 
     if (maxDimension && (canvas.width > maxDimension || canvas.height > maxDimension)) {
@@ -178,12 +187,12 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
 
     // Split off the "data:image/jpeg;base64," prefix — callers only need the raw base64
     return canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null;
-  }, [videoRef]);
+  }, [videoRef, lowLight]);
 
   useEffect(() => () => { stop(); }, [stop]);
 
   return {
     ready, error, start, stop, captureFrame, refocus, supportedFocusModes,
-    focusDistanceRange, focusDistanceValue, setFocusDistance,
+    focusDistanceRange, focusDistanceValue, setFocusDistance, lowLight, toggleLowLight,
   };
 }

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { App as CapacitorApp } from '@capacitor/app';
-import { X, ScanLine, Camera, Sparkles, Undo2, ArrowRight, RotateCw, ChevronUp, ChevronDown, Crop } from 'lucide-react';
+import { X, ScanLine, Camera, Sparkles, Undo2, ArrowRight, RotateCw, ChevronUp, ChevronDown, Crop, SunMedium } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { CameraPreview } from '../components/scanner/CameraPreview';
 import { Spinner } from '../components/ui/Spinner';
 import { PhotoLightbox } from '../components/ui/PhotoLightbox';
 import { PhotoCropModal } from '../components/ui/PhotoCropModal';
 import { useCaptureLoop, type CapturedPhoto, type Finding, type FindingData } from '../hooks/useCaptureLoop';
+import { LOW_LIGHT_FILTER } from '../hooks/useCamera';
 import { useCollectionStore } from '../store/collectionStore';
 import { apiClient } from '../api/apiClient';
 import { apiError } from '../utils/apiError';
@@ -302,11 +303,18 @@ export function ScanCapturePage() {
 
   const {
     videoRef, cameraReady, cameraError, isNative, moduleStatus, findings, merged, photos, hint, setHint, statusMessage,
-    visionBusy, finalizing, canUndo, rotation, cycleRotation, refocus, supportedFocusModes,
-    focusDistanceRange, focusDistanceValue, setFocusDistance,
+    visionBusy, finalizing, canUndo, rotation, cycleRotation, refocus, refocusScanner, supportedFocusModes,
+    focusDistanceRange, focusDistanceValue, setFocusDistance, lowLight, toggleLowLight,
     capturePhoto, enterPhotoMode, removePhoto, setPhotoAngle, setPhotoData, analyzePhotos, rejectFinding, next, previous,
     inPhotoBurst, resumeScanning,
   } = useCaptureLoop(id, session?.collectionId ?? -1, collectionCategory);
+  const [focusPulse, setFocusPulse] = useState<{ x: number; y: number } | null>(null);
+  const handleNativeFocusTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setFocusPulse({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setTimeout(() => setFocusPulse(null), 600);
+    void refocusScanner();
+  };
 
   // Wraps the raw capturePhoto so the flash fires no matter which control took the shot — the
   // on-screen shutter or the drawer's "Capture another" button, both of which take a photo
@@ -320,11 +328,19 @@ export function ScanCapturePage() {
 
   // Two very different cameras exist in the wild here: some support a real autofocus sweep
   // (tap-to-focus), others only expose a manual focusDistance range (slider) — confirmed on a
-  // real device that only offers the latter. Some offer neither at all. None of this applies on
-  // native (isNative) — the native ML Kit scanner drives its own camera/focus entirely.
-  const canTapFocus = !isNative && (supportedFocusModes?.some((m) => m === 'continuous' || m === 'single-shot') ?? false);
-  const canSliderFocus = !isNative && focusDistanceRange !== null;
-  const noFocusControl = !isNative && supportedFocusModes !== null && !canTapFocus && !canSliderFocus;
+  // real device that only offers the latter. Some offer neither at all.
+  //
+  // supportedFocusModes only ever gets populated by useCamera's getUserMedia stream, which is
+  // exactly what's live both in the plain web flow *and* during a native photo burst (see
+  // enterPhotoMode's startCamera call) — it stays null the rest of the time on native (the ML
+  // Kit scan session is a separate hardware surface useCamera never touches, and the plugin
+  // itself exposes no focus API at all — see refocusScanner's own comment, whose tap target is
+  // wired directly in the native branch below instead of through canTapFocus). So these three
+  // just key off supportedFocusModes rather than an explicit isNative check — they naturally
+  // read as "no control" until a real getUserMedia stream with capabilities is actually up.
+  const canTapFocus = supportedFocusModes?.some((m) => m === 'continuous' || m === 'single-shot') ?? false;
+  const canSliderFocus = focusDistanceRange !== null;
+  const noFocusControl = supportedFocusModes !== null && !canTapFocus && !canSliderFocus;
 
   if (loadError) {
     return (
@@ -389,26 +405,90 @@ export function ScanCapturePage() {
             Toggling `transparent` rather than swapping between two separate elements matters: see
             CameraPreview's own comment on why the <video> node has to survive the transition. */}
         <div className="flex-1 relative min-h-0">
-          <CameraPreview ref={videoRef} scanning={false} transparent={!inPhotoBurst} fill className="absolute inset-0 rounded-none" />
+          <CameraPreview
+            ref={videoRef}
+            scanning={false}
+            transparent={!inPhotoBurst}
+            fill
+            className="absolute inset-0 rounded-none"
+            filter={inPhotoBurst && lowLight ? LOW_LIGHT_FILTER : undefined}
+            onFocus={inPhotoBurst && canTapFocus ? refocus : undefined}
+          />
 
           {!inPhotoBurst && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="relative w-56 h-32">
-                {['top-0 left-0', 'top-0 right-0', 'bottom-0 left-0', 'bottom-0 right-0'].map((pos, i) => (
-                  <span
-                    key={i}
-                    className={[
-                      'absolute w-5 h-5 border-white/90',
-                      pos,
-                      i === 0 && 'border-t-2 border-l-2 rounded-tl',
-                      i === 1 && 'border-t-2 border-r-2 rounded-tr',
-                      i === 2 && 'border-b-2 border-l-2 rounded-bl',
-                      i === 3 && 'border-b-2 border-r-2 rounded-br',
-                    ].filter(Boolean).join(' ')}
+            <>
+              {/* Tap-to-refocus for the native ML Kit view. That camera session is a separate
+                  hardware surface the plugin gives us no focus API for at all (see
+                  refocusScanner's comment) — restarting the scan session is the only lever
+                  available, so this tap area triggers that instead of a real focus call.
+                  CameraPreview itself is pointer-events-none while transparent (a deliberate fix
+                  for Android routing taps to the hardware surface's stale on-screen position), so
+                  the tap target has to live on this always-interactive sibling instead. */}
+              <div onClick={handleNativeFocusTap} className="absolute inset-0 cursor-crosshair">
+                {focusPulse && (
+                  <div
+                    className="absolute w-14 h-14 -ml-7 -mt-7 rounded-full border-2 border-white/80 pointer-events-none animate-ping"
+                    style={{ left: focusPulse.x, top: focusPulse.y }}
                   />
-                ))}
+                )}
               </div>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative w-56 h-32">
+                  {['top-0 left-0', 'top-0 right-0', 'bottom-0 left-0', 'bottom-0 right-0'].map((pos, i) => (
+                    <span
+                      key={i}
+                      className={[
+                        'absolute w-5 h-5 border-white/90',
+                        pos,
+                        i === 0 && 'border-t-2 border-l-2 rounded-tl',
+                        i === 1 && 'border-t-2 border-r-2 rounded-tr',
+                        i === 2 && 'border-b-2 border-l-2 rounded-bl',
+                        i === 3 && 'border-b-2 border-r-2 rounded-br',
+                      ].filter(Boolean).join(' ')}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Low-light boost — only has anything to visibly affect during a photo burst (real
+              getUserMedia feed); tapping it beforehand just pre-arms the boost for whenever the
+              burst starts, same as the native scan view has nothing for a CSS filter to touch. */}
+          <button
+            onClick={toggleLowLight}
+            title={lowLight ? 'Low-light boost on' : 'Boost for low light'}
+            className={`absolute top-2 left-2 z-10 rounded-full p-2 transition-colors ${lowLight ? 'bg-amber-400 text-black' : 'bg-black/50 text-white'}`}
+          >
+            <SunMedium size={18} />
+          </button>
+
+          {/* Focus controls for the photo-burst view — this is a real getUserMedia stream (unlike
+              the transparent ML Kit scan view above), so the same tap/slider controls the web
+              flow gets further down this file apply here too. */}
+          {inPhotoBurst && canTapFocus && (
+            <p className="absolute bottom-24 inset-x-0 text-center text-xs text-white/70 pointer-events-none">
+              Tap the preview to focus
+            </p>
+          )}
+          {inPhotoBurst && canSliderFocus && focusDistanceRange && (
+            <div className="absolute bottom-20 inset-x-6 z-10 bg-black/50 rounded-lg px-3 py-1.5">
+              <input
+                type="range"
+                min={focusDistanceRange.min}
+                max={focusDistanceRange.max}
+                step={focusDistanceRange.step}
+                value={focusDistanceValue ?? (focusDistanceRange.min + focusDistanceRange.max) / 2}
+                onChange={(e) => setFocusDistance(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-white/70 text-center">Focus — drag while watching the preview</p>
             </div>
+          )}
+          {inPhotoBurst && noFocusControl && (
+            <p className="absolute bottom-24 inset-x-4 text-center text-xs text-amber-300 pointer-events-none">
+              This camera doesn't expose any focus control — hold the item steady at a close, well-lit distance.
+            </p>
           )}
 
           {/* Flash — the only feedback that a shot was actually taken, since there's no shutter
@@ -500,7 +580,15 @@ export function ScanCapturePage() {
                 scanning
                 rotation={rotation}
                 onFocus={canTapFocus ? refocus : undefined}
+                filter={lowLight ? LOW_LIGHT_FILTER : undefined}
               />
+              <button
+                onClick={toggleLowLight}
+                title={lowLight ? 'Low-light boost on' : 'Boost for low light'}
+                className={`absolute top-2 left-2 rounded-full p-2 transition-colors ${lowLight ? 'bg-amber-400 text-black' : 'bg-black/50 text-white hover:bg-black/70'}`}
+              >
+                <SunMedium size={18} />
+              </button>
               <button
                 onClick={cycleRotation}
                 title="Rotate to match how you're holding the phone"

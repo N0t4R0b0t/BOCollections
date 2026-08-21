@@ -176,6 +176,7 @@ export function useCaptureLoop(sessionId: number, collectionId: number, category
   const {
     ready: cameraReady, error: cameraError, start: startCamera, stop: stopCamera, captureFrame,
     refocus, supportedFocusModes, focusDistanceRange, focusDistanceValue, setFocusDistance,
+    lowLight, toggleLowLight,
   } = useCamera(videoRef);
   const { createDraft, updateDraft, discardDraft } = useScanSessionStore();
   const currentBatchRef = useRef<Batch>(makeBatch(0));
@@ -324,8 +325,10 @@ export function useCaptureLoop(sessionId: number, collectionId: number, category
     }
   }, [addFinding]);
 
-  const { start: startDetector, pause: pauseDetector, resume: resumeDetector, status: detectorStatus, moduleStatus } =
-    useScannerBarcodeDetector(videoRef, { onDetected: onBarcodeDetected, debounceMs: 1500, rotation });
+  const {
+    start: startDetector, pause: pauseDetector, resume: resumeDetector, status: detectorStatus, moduleStatus,
+    refocusScanner,
+  } = useScannerBarcodeDetector(videoRef, { onDetected: onBarcodeDetected, debounceMs: 1500, rotation });
 
   // True from the first photo of a capture burst until resumeScanning() (see below) explicitly
   // ends it — lets capturePhoto skip the pause+delay handoff for every photo after the first, so
@@ -710,10 +713,13 @@ export function useCaptureLoop(sessionId: number, collectionId: number, category
     rotation,
     cycleRotation,
     refocus,
+    refocusScanner,
     supportedFocusModes,
     focusDistanceRange,
     focusDistanceValue,
     setFocusDistance,
+    lowLight,
+    toggleLowLight,
     capturePhoto,
     enterPhotoMode,
     removePhoto,
