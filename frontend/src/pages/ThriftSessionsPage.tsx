@@ -62,9 +62,11 @@ export function ThriftSessionsPage() {
       return;
     }
     setExpandedId(id);
-    if (!sightingsBySession[id]) {
-      await fetchSightings(id);
-    }
+    // Always refetch, not just the first time — an earlier expand (even one that found zero
+    // sightings, e.g. right after the trip was created) previously cached that empty result
+    // forever, so every sighting recorded afterward stayed invisible here even though the
+    // session's own "N items seen" count (a fresh query every page load) kept climbing.
+    await fetchSightings(id);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
