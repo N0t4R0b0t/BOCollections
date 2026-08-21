@@ -37,6 +37,14 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 // frame's area, treat it as no detection rather than surprise the user with a tiny box.
 const MIN_DETECTED_AREA_FRACTION = 0.15;
 
+// A background this saturated (0-255 scale) is a deliberate colored backdrop (a thrift-shelf
+// photo mat, a colored bag/cloth), not a neutral surface — only then is color-distance
+// segmentation (below) worth attempting. Below this, stay on jscanify's edge-based detection;
+// running color segmentation against a low-saturation wood/gray/white background reproduces
+// the exact failure this app's original heuristic-based cropper had (see CLAUDE.md) — with a
+// weak color signal, "not background-colored" stops meaningfully separating object from surface.
+const BACKGROUND_SATURATION_THRESHOLD = 60;
+
 const scanner = new jscanify();
 
 /** Shoelace formula, fractional coordinates. */
@@ -51,9 +59,156 @@ function quadArea(q: Quad): number {
   return Math.abs(sum) / 2;
 }
 
-/** Runs jscanify's contour detection against the loaded image and converts the result (natural-
- * pixel corners) into a fractional Quad. Returns null if nothing was detected — callers should
- * fall back to the default centered quad rather than leave the crop box unusable.
+function cornersToQuad(
+  corners: { topLeftCorner?: Point; topRightCorner?: Point; bottomLeftCorner?: Point; bottomRightCorner?: Point },
+  w: number, h: number
+): Quad | null {
+  const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = corners;
+  if (!topLeftCorner || !topRightCorner || !bottomLeftCorner || !bottomRightCorner) return null;
+  return {
+    tl: { x: clamp(topLeftCorner.x / w, 0, 1), y: clamp(topLeftCorner.y / h, 0, 1) },
+    tr: { x: clamp(topRightCorner.x / w, 0, 1), y: clamp(topRightCorner.y / h, 0, 1) },
+    bl: { x: clamp(bottomLeftCorner.x / w, 0, 1), y: clamp(bottomLeftCorner.y / h, 0, 1) },
+    br: { x: clamp(bottomRightCorner.x / w, 0, 1), y: clamp(bottomRightCorner.y / h, 0, 1) },
+  };
+}
+
+/** Mean HSV of a border strip around the frame, sampled every 3rd pixel — cheap and assumes
+ * (reasonably, for a scan/thrift photo) that the image edges are background, not the object.
+ * Hue is circular-averaged (0/180 wrap in OpenCV's 0-180 hue range) so a backdrop whose sampled
+ * hues straddle the wrap point doesn't average out to a nonsense mid-range hue. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sampleBackgroundHsv(cv: any, hsv: any): { hue: number; sat: number } {
+  const w = hsv.cols, h = hsv.rows;
+  const stripFrac = 0.06;
+  const sw = Math.max(4, Math.round(w * stripFrac));
+  const sh = Math.max(4, Math.round(h * stripFrac));
+  const rects = [
+    new cv.Rect(0, 0, w, sh), new cv.Rect(0, h - sh, w, sh),
+    new cv.Rect(0, 0, sw, h), new cv.Rect(w - sw, 0, sw, h),
+  ];
+  let sSum = 0, n = 0, sinSum = 0, cosSum = 0;
+  for (const r of rects) {
+    const roi = hsv.roi(r);
+    for (let y = 0; y < roi.rows; y += 3) {
+      for (let x = 0; x < roi.cols; x += 3) {
+        const px = roi.ucharPtr(y, x);
+        const rad = (px[0] / 180) * Math.PI * 2;
+        sinSum += Math.sin(rad);
+        cosSum += Math.cos(rad);
+        sSum += px[1];
+        n++;
+      }
+    }
+    roi.delete();
+  }
+  const hue = ((Math.atan2(sinSum / n, cosSum / n) / (Math.PI * 2)) * 180 + 180) % 180;
+  return { hue, sat: sSum / n };
+}
+
+/** |hue - target| with 0-180 wraparound. Caller owns `hue`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function circularHueDelta(cv: any, hue: any, targetHue: number): any {
+  const diff = new cv.Mat();
+  const targetMat = new cv.Mat(hue.rows, hue.cols, hue.type(), new cv.Scalar(targetHue));
+  cv.absdiff(hue, targetMat, diff);
+  const inv = new cv.Mat();
+  const fullMat = new cv.Mat(hue.rows, hue.cols, hue.type(), new cv.Scalar(180));
+  cv.subtract(fullMat, diff, inv);
+  cv.min(diff, inv, diff);
+  targetMat.delete(); inv.delete(); fullMat.delete();
+  return diff;
+}
+
+/** Detects the object by segmenting out whatever color the frame's border is (see
+ * BACKGROUND_SATURATION_THRESHOLD) rather than edge detection. jscanify's stock Canny-based
+ * findPaperContour was verified (against real photos on a solid-but-crinkled/reflective colored
+ * background — see PR discussion) to fail two different ways depending on how it ranks candidate
+ * contours: by raw contourArea it locks onto small internal high-contrast regions of the object's
+ * own artwork; even ranked by convex-hull area (robust to self-intersecting edge-fragment
+ * contours) it still never finds the true object boundary, because a glossy/reflective surface
+ * breaks that edge into disconnected fragments that Canny+findContours never joins into one
+ * closed contour in the first place — no ranking of the candidates that *were* found fixes that.
+ * Color segmentation sidesteps the problem entirely: the object is whatever isn't background-
+ * colored, independent of how broken its own edge is. Returns null on any failure (caller falls
+ * back to jscanify, then to the default centered box). */
+function detectQuadByColorSegmentation(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cv: any, src: any, w: number, h: number
+): Quad | null {
+  const hsv = new cv.Mat();
+  cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
+  cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
+
+  const bg = sampleBackgroundHsv(cv, hsv);
+  if (bg.sat < BACKGROUND_SATURATION_THRESHOLD) {
+    hsv.delete();
+    return null;
+  }
+
+  const channels = new cv.MatVector();
+  cv.split(hsv, channels);
+  const hue = channels.get(0);
+  const sat = channels.get(1);
+
+  const hueDelta = circularHueDelta(cv, hue, bg.hue);
+  const satDiff = new cv.Mat();
+  const satTargetMat = new cv.Mat(sat.rows, sat.cols, sat.type(), new cv.Scalar(bg.sat));
+  cv.absdiff(sat, satTargetMat, satDiff);
+
+  // "background" = close to the sampled border color in both hue and saturation; the object is
+  // everything else. Tolerances picked empirically against real test photos (see PR discussion).
+  const hueMask = new cv.Mat();
+  cv.threshold(hueDelta, hueMask, 12, 255, cv.THRESH_BINARY_INV);
+  const satMask = new cv.Mat();
+  cv.threshold(satDiff, satMask, 60, 255, cv.THRESH_BINARY_INV);
+  const bgMask = new cv.Mat();
+  cv.bitwise_and(hueMask, satMask, bgMask);
+  const fgMask = new cv.Mat();
+  cv.bitwise_not(bgMask, fgMask);
+
+  // CLOSE fills small holes inside the object (glare, a light-colored label); OPEN (a bigger
+  // kernel) sheds thin bridges/tabs left over from background noise — without it the object's
+  // convex hull balloons out to include noise blobs barely touching its edge (confirmed live:
+  // dropped a ~30% look-alike hull down to a tight fit on real test photos).
+  const kernelClose = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(15, 15));
+  const closed = new cv.Mat();
+  cv.morphologyEx(fgMask, closed, cv.MORPH_CLOSE, kernelClose);
+  const kernelOpen = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(21, 21));
+  const cleaned = new cv.Mat();
+  cv.morphologyEx(closed, cleaned, cv.MORPH_OPEN, kernelOpen);
+
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  cv.findContours(cleaned, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  let bestArea = 0, bestIdx = -1;
+  for (let i = 0; i < contours.size(); i++) {
+    const a = cv.contourArea(contours.get(i));
+    if (a > bestArea) { bestArea = a; bestIdx = i; }
+  }
+
+  let result: Quad | null = null;
+  if (bestIdx >= 0) {
+    const winner = contours.get(bestIdx);
+    const hull = new cv.Mat();
+    cv.convexHull(winner, hull, false, true);
+    const corners = scanner.getCornerPoints(hull);
+    result = cornersToQuad(corners, w, h);
+    hull.delete();
+  }
+
+  hsv.delete(); hue.delete(); sat.delete(); hueDelta.delete(); satDiff.delete(); satTargetMat.delete();
+  hueMask.delete(); satMask.delete(); bgMask.delete(); fgMask.delete(); channels.delete();
+  kernelClose.delete(); closed.delete(); kernelOpen.delete(); contours.delete(); hierarchy.delete();
+
+  return result && quadArea(result) >= MIN_DETECTED_AREA_FRACTION ? result : null;
+}
+
+/** Detects the photographed object's quad, converting to a fractional Quad (0-1 of the natural
+ * image size). Tries color-segmentation first (only against a sufficiently colorful background —
+ * see BACKGROUND_SATURATION_THRESHOLD), then falls back to jscanify's edge-based detection.
+ * Returns null if neither finds anything — callers fall back to the default centered quad.
  *
  * `img` MUST be an off-DOM image (never inserted/laid out), not the on-screen preview — confirmed
  * live that `cv.imread()` reads a CSS-styled, in-document `<img>` at its *rendered* box size
@@ -66,23 +221,19 @@ function detectQuad(img: HTMLImageElement): Quad | null {
   const cv = window.cv;
   if (!cv || !img.naturalWidth || !img.naturalHeight) return null;
 
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
   const mat = cv.imread(img);
   try {
+    const byColor = detectQuadByColorSegmentation(cv, mat, w, h);
+    if (byColor) return byColor;
+
     const contour = scanner.findPaperContour(mat);
     if (!contour) return null;
-    const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = scanner.getCornerPoints(contour);
+    const corners = scanner.getCornerPoints(contour);
     contour.delete?.();
-    if (!topLeftCorner || !topRightCorner || !bottomLeftCorner || !bottomRightCorner) return null;
-
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
-    const detected: Quad = {
-      tl: { x: clamp(topLeftCorner.x / w, 0, 1), y: clamp(topLeftCorner.y / h, 0, 1) },
-      tr: { x: clamp(topRightCorner.x / w, 0, 1), y: clamp(topRightCorner.y / h, 0, 1) },
-      bl: { x: clamp(bottomLeftCorner.x / w, 0, 1), y: clamp(bottomLeftCorner.y / h, 0, 1) },
-      br: { x: clamp(bottomRightCorner.x / w, 0, 1), y: clamp(bottomRightCorner.y / h, 0, 1) },
-    };
-    return quadArea(detected) >= MIN_DETECTED_AREA_FRACTION ? detected : null;
+    const detected = cornersToQuad(corners, w, h);
+    return detected && quadArea(detected) >= MIN_DETECTED_AREA_FRACTION ? detected : null;
   } finally {
     mat.delete();
   }
