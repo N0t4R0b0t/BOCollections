@@ -109,6 +109,7 @@ type ShelfAction =
   | { type: 'START_ANALYZE' }
   | { type: 'ANALYZE_SUCCESS'; results: ThriftSighting[] }
   | { type: 'ANALYZE_ERROR'; errorMsg: string }
+  | { type: 'CAPTURE_ERROR'; errorMsg: string }
   | { type: 'SLOW_NOTICE' }
   | { type: 'SELECT_SIGHTING'; id: number | null }
   | { type: 'SELECT_PHOTO'; index: number }
@@ -142,6 +143,8 @@ function shelfReducer(state: ShelfState, action: ShelfAction): ShelfState {
       return { ...state, phase: 'RESULTS', results: mergeResults(state.results, action.results), shots: [] };
     case 'ANALYZE_ERROR':
       return { ...state, phase: 'LIVE', errorMsg: action.errorMsg };
+    case 'CAPTURE_ERROR':
+      return { ...state, errorMsg: action.errorMsg };
     case 'SLOW_NOTICE':
       return { ...state, slowNotice: true };
     case 'SELECT_SIGHTING':
@@ -170,7 +173,21 @@ function ShelfModePanel({ sessionId, collectionIds }: { sessionId: number; colle
 
   const shoot = () => {
     const base64 = captureFrame(0.85, 0, VISION_MAX_DIMENSION);
-    if (!base64) return;
+    if (!base64) {
+      // Previously a silent no-op — a tap that visibly did nothing, with zero way to tell why
+      // (reported live: "I take a picture and nothing happens"). Surface it to the user and log
+      // the actual video-element state so a repeat is diagnosable from the Settings page's log
+      // viewer instead of unreproducible.
+      const video = videoRef.current;
+      const diagnostics = {
+        readyState: video?.readyState, videoWidth: video?.videoWidth, videoHeight: video?.videoHeight,
+        cameraReady, cameraError,
+      };
+      console.warn('[shelf] captureFrame returned null', diagnostics);
+      void apiClient.debugLog({ event: 'shelf-capture-failed', ...diagnostics });
+      dispatch({ type: 'CAPTURE_ERROR', errorMsg: "Couldn't capture a photo — try again, or leave and re-enter this trip if it keeps happening." });
+      return;
+    }
     dispatch({ type: 'ADD_SHOT', shot: { id: crypto.randomUUID(), dataUrl: `data:image/jpeg;base64,${base64}`, base64 } });
     setTimeout(() => dispatch({ type: 'FLASH_OFF' }), 300);
   };
