@@ -19,6 +19,7 @@ import { ScanReviewPage } from './pages/ScanReviewPage';
 import { AddPhotosPage } from './pages/AddPhotosPage';
 import { ThriftSessionsPage } from './pages/ThriftSessionsPage';
 import { ThriftCapturePage } from './pages/ThriftCapturePage';
+import { SettingsPage } from './pages/SettingsPage';
 
 function App() {
   const { initializeAuth } = useAuthStore();
@@ -52,6 +53,8 @@ function App() {
         <Route path="/thrift" element={<ProtectedRoute><ThriftSessionsPage /></ProtectedRoute>} />
         <Route path="/thrift/:sessionId" element={<ProtectedRoute><ThriftCapturePage /></ProtectedRoute>} />
         <Route path="/thrift/:sessionId/sightings/:sightingId/photos" element={<ProtectedRoute><AddPhotosPage /></ProtectedRoute>} />
+
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

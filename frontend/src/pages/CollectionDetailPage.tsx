@@ -8,27 +8,8 @@ import { CategoryBadge, ConditionBadge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
 import { mediaUrl } from '../utils/mediaUrl';
 import { apiError } from '../utils/apiError';
-import type { AxiosResponse } from 'axios';
+import { downloadBlob, filenameFromResponse } from '../utils/downloadBlob';
 import type { Collection, CollectionEntry, CollectionExport, Item, Page } from '../types';
-
-/** Pulls the filename the backend picked (Content-Disposition) rather than inventing our own —
- * falls back to a sensible default if it's ever missing. */
-function filenameFromResponse(res: AxiosResponse<Blob>, fallback: string): string {
-  const disposition = res.headers['content-disposition'] as string | undefined;
-  const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-  return match ? decodeURIComponent(match[1]) : fallback;
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 export function CollectionDetailPage() {
   const { id } = useParams<{ id: string }>();

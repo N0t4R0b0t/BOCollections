@@ -120,6 +120,14 @@ export const apiClient = {
   importCollectionJson: (collectionId: number, data: CollectionExport) =>
     http.post<{ imported: number }>(`/collections/${collectionId}/import/json`, data),
 
+  // Settings
+  clearScannerCache: () =>
+    http.delete<{ cleared: number }>('/settings/scanner-cache'),
+  tailLogs: (lines = 200) =>
+    http.get<string>('/settings/logs/tail', { params: { lines }, responseType: 'text' }),
+  downloadLogs: () =>
+    http.get<Blob>('/settings/logs/download', { responseType: 'blob' }),
+
   // Items
   searchItems: (q: string, page = 0, size = 20, filters?: ItemFilters) =>
     http.get<Page<Item>>('/items', { params: { q, page, size, ...filters } }),

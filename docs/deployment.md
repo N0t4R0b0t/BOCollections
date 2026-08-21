@@ -130,6 +130,7 @@ vision needs explicit setup.
 | `JWT_SECRET` | dev default | **Change this in production** — the LXC installer generates a random one automatically |
 | `DB_PASSWORD` | `collections` | Postgres password — also auto-generated on the LXC install |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost` on the LXC install | **Almost always needs changing.** Must exactly match the origin(s) — protocol + host + port — your browser actually loads the app from (e.g. `http://<lxc-ip>` or a reverse-proxied `https://your-domain`). Comma-separated, no spaces, no trailing slash. A mismatch fails *silently* as a 403 on every POST/PUT/PATCH/DELETE (register, login, everything) with nothing in the backend's own logs pointing at CORS — see the `SecurityConfiguration.allowedOrigins` quirk in `CLAUDE.md` (it's bound with `@Value` on a single string, not a YAML list). **If you use the native Android app, also add `https://localhost`** — Capacitor's WebView always loads from that fixed origin regardless of which server URL the user enters on the Connect screen, so it needs to be allowed independently of your actual domain/IP |
+| `LOG_FILE` | `./data/logs/backend.log` (`/opt/bocollections/data/logs/backend.log` on the LXC) | Where the backend writes its log file, on top of the console/journald output `journalctl -u bocollections-backend` already captures. Backs the in-app **Settings** page's log tail/download — see [below](#settings-page) |
 
 **Vision AI is disabled by default** on a fresh LXC install — installing a real GPU-backed model
 inside the container is its own project. Point `OLLAMA_BASE_URL` at an existing Ollama server on
@@ -187,3 +188,16 @@ items on import rather than trying to merge).
 This covers **application data** — items, collections, photos. It does not cover the database
 engine itself (users, sessions, thrift sightings, everything the app-level export doesn't touch).
 A `pg_dump`-based database backup is a natural complement, not yet implemented.
+
+## Settings page
+
+A small in-app **Settings** page (any authenticated user — there's no admin/role concept in this
+app) exposes two operator utilities without needing shell access to the LXC:
+
+- **Clear scanner cache** — deletes every row in `resolved_barcodes` (both real matches and
+  confirmed misses), forcing the next scan of any barcode to re-run the full external lookup
+  chain. Doesn't touch catalogue items or collections, only the cache.
+- **Backend logs** — tails the last 200 lines, or downloads the full current log file, backed by
+  the `LOG_FILE` env var (see [Configuration](#configuration)). This is in addition to, not a
+  replacement for, `journalctl -u bocollections-backend` — both read from the same log content
+  Spring Boot writes to both console and file simultaneously once `LOG_FILE` is set.

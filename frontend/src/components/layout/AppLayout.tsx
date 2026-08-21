@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Library, BookOpen, Music, Film, Gamepad2, LogOut, User, Search, ScanLine, ShoppingBag, Download } from 'lucide-react';
+import { Library, BookOpen, Music, Film, Gamepad2, LogOut, User, Search, ScanLine, ShoppingBag, Download, Settings } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { BottomTabBar } from './BottomTabBar';
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/items',       label: 'Catalogue',   icon: Search       },
   { to: '/scan',        label: 'Scanner',     icon: ScanLine     },
   { to: '/thrift',      label: 'Thrifting',   icon: ShoppingBag  },
+  { to: '/settings',    label: 'Settings',    icon: Settings     },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {

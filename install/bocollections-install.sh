@@ -79,7 +79,7 @@ echo "$BOCOLLECTIONS_VERSION" >"$HOME/.bocollections"
 msg_ok "Downloaded BOCollections ${BOCOLLECTIONS_VERSION}"
 
 msg_info "Configuring BOCollections"
-mkdir -p /etc/bocollections /opt/bocollections/data/scan-photos /opt/bocollections/data/backups
+mkdir -p /etc/bocollections /opt/bocollections/data/scan-photos /opt/bocollections/data/backups /opt/bocollections/data/logs
 JWT_SECRET="$(openssl rand -hex 32)"
 cat <<EOF >/etc/bocollections/bocollections.env
 DB_HOST=127.0.0.1
@@ -102,6 +102,9 @@ JWT_SECRET=${JWT_SECRET}
 # Connect screen. Edit this and `systemctl restart bocollections-backend` after install.
 CORS_ALLOWED_ORIGINS=http://localhost
 STORAGE_LOCAL_PATH=/opt/bocollections/data/scan-photos
+# Backend log file — also viewable/downloadable from the app's own Settings page (in addition to
+# journalctl -u bocollections-backend, which still gets everything console-side regardless).
+LOG_FILE=/opt/bocollections/data/logs/backend.log
 # Daily backup: a self-contained JSON file per collection (photos embedded as base64) written to
 # disk, skipped when nothing's changed since the last one — see ScheduledCollectionExportTask.
 # Point cron/rsync/whatever your own off-box backup story is at this directory; disable by setting

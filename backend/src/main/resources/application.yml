@@ -109,6 +109,21 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+# File logging (in addition to the console/journald output systemd already captures) so the
+# Settings page's tail/download can read something — Spring Boot's default logback-spring.xml
+# already supports file output via this property alone, no custom logback.xml needed. Relative
+# default resolves against the process's working directory (WorkingDirectory=/opt/bocollections
+# in the LXC's systemd unit), matching STORAGE_LOCAL_PATH/EXPORT_SCHEDULE_DIRECTORY's convention
+# of an explicit absolute path in production, a relative one for local dev.
+logging:
+  file:
+    name: ${LOG_FILE:./data/logs/backend.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 14
+      total-size-cap: 200MB
+
 management:
   endpoints:
     web:

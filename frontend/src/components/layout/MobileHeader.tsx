@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { BookOpen, Music, Film, Gamepad2, LogOut, Download } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { BookOpen, Music, Film, Gamepad2, LogOut, Download, Settings } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { isNativePlatform } from '../../utils/platform';
 
@@ -37,6 +37,13 @@ export function MobileHeader() {
             <Download size={18} />
           </a>
         )}
+        <Link
+          to="/settings"
+          className="text-gray-400 hover:text-indigo-600 transition-colors p-1"
+          aria-label="Settings"
+        >
+          <Settings size={18} />
+        </Link>
         {/* User initial badge */}
         <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
           {initial}
