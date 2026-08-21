@@ -14,6 +14,7 @@ import { apiClient } from '../api/apiClient';
 interface FocusCapabilities {
   focusMode?: string[];
   focusDistance?: { min: number; max: number; step: number };
+  torch?: boolean;
 }
 
 export interface FocusDistanceRange { min: number; max: number; step: number; }
@@ -39,6 +40,8 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const [focusDistanceValue, setFocusDistanceValue] = useState<number | null>(null);
   const [lowLight, setLowLight] = useState(false);
   const toggleLowLight = useCallback(() => setLowLight((v) => !v), []);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const applyFocusMode = useCallback(async (mode: 'continuous' | 'single-shot') => {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -82,6 +85,8 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
       console.info('[camera] focus capabilities', capabilities, 'modes:', modes);
       void apiClient.debugLog({ event: 'camera-capabilities', capabilities, focusModes: modes, userAgent: navigator.userAgent });
       setSupportedFocusModes(modes);
+      setTorchAvailable(!!capabilities?.torch);
+      setTorchOn(false);
       if (modes.includes('continuous')) {
         // Applying it as a live constraint on the track (rather than only in the initial
         // getUserMedia call above) is more reliable across browsers — some only honour
@@ -122,7 +127,23 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
     streamRef.current = null;
     setReady(false);
     setSupportedFocusModes(null);
+    setTorchAvailable(false);
+    setTorchOn(false);
   }, []);
+
+  // Same Image Capture extension family as focusMode/focusDistance above — a device without a
+  // rear flash (or a browser that doesn't surface it) just leaves torchAvailable false, so
+  // callers can skip rendering the control entirely rather than showing a button that no-ops.
+  const toggleTorch = useCallback(async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track || !torchAvailable) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] } as unknown as MediaTrackConstraints);
+      setTorchOn((v) => !v);
+    } catch (e) {
+      console.warn('[camera] applyConstraints(torch) failed', e);
+    }
+  }, [torchAvailable, torchOn]);
 
   /**
    * On-demand refocus for cameras that don't support continuous AF (or where it's stuck) —
@@ -194,5 +215,6 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
   return {
     ready, error, start, stop, captureFrame, refocus, supportedFocusModes,
     focusDistanceRange, focusDistanceValue, setFocusDistance, lowLight, toggleLowLight,
+    torchAvailable, torchOn, toggleTorch,
   };
 }

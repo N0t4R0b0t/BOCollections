@@ -127,6 +127,13 @@ export function useBarcodeDetector(
   // workaround), so this just keeps the return shape aligned with useNativeBarcodeDetector for
   // useScannerBarcodeDetector's callers to destructure without a branch-specific type error.
   const refocusScanner = useCallback(async () => {}, []);
+  // Same reasoning — the web/getUserMedia path has its own torch control via useCamera's real
+  // MediaTrackConstraints, wired independently in ScanCapturePage; this plugin-specific one only
+  // needs to exist so useScannerBarcodeDetector's callers can destructure it unconditionally.
+  const toggleTorch = useCallback(async () => {}, []);
 
-  return { isSupported: true, status, moduleStatus: 'ready' as const, start, pause, resume, refocusScanner };
+  return {
+    isSupported: true, status, moduleStatus: 'ready' as const, start, pause, resume, refocusScanner,
+    torchAvailable: false, torchOn: false, toggleTorch,
+  };
 }

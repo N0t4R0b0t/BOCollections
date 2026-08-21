@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { App as CapacitorApp } from '@capacitor/app';
-import { X, ScanLine, Camera, Sparkles, Undo2, ArrowRight, RotateCw, ChevronUp, ChevronDown, Crop, SunMedium } from 'lucide-react';
+import { X, ScanLine, Camera, Sparkles, Undo2, ArrowRight, RotateCw, ChevronUp, ChevronDown, Crop, SunMedium, Flashlight, FlashlightOff } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { CameraPreview } from '../components/scanner/CameraPreview';
 import { Spinner } from '../components/ui/Spinner';
@@ -305,6 +305,7 @@ export function ScanCapturePage() {
     videoRef, cameraReady, cameraError, isNative, moduleStatus, findings, merged, photos, hint, setHint, statusMessage,
     visionBusy, finalizing, canUndo, rotation, cycleRotation, refocus, refocusScanner, supportedFocusModes,
     focusDistanceRange, focusDistanceValue, setFocusDistance, lowLight, toggleLowLight,
+    torchAvailable, torchOn, toggleTorch, nativeTorchAvailable, nativeTorchOn, toggleNativeTorch,
     capturePhoto, enterPhotoMode, removePhoto, setPhotoAngle, setPhotoData, analyzePhotos, rejectFinding, next, previous,
     inPhotoBurst, resumeScanning,
   } = useCaptureLoop(id, session?.collectionId ?? -1, collectionCategory);
@@ -463,6 +464,30 @@ export function ScanCapturePage() {
             <SunMedium size={18} />
           </button>
 
+          {/* Torch/flashlight — a real hardware control, unlike the CSS-only low-light boost.
+              Two different APIs depending on which camera session is live: the native ML Kit scan
+              view has its own plugin method (enableTorch/toggleTorch — no getUserMedia stream
+              exists to attach a MediaTrackConstraint to), while the photo-burst view is a real
+              getUserMedia stream and uses the standard torch constraint via useCamera. */}
+          {!inPhotoBurst && nativeTorchAvailable && (
+            <button
+              onClick={() => void toggleNativeTorch()}
+              title={nativeTorchOn ? 'Turn off flashlight' : 'Turn on flashlight'}
+              className={`absolute top-2 left-14 z-10 rounded-full p-2 transition-colors ${nativeTorchOn ? 'bg-amber-400 text-black' : 'bg-black/50 text-white'}`}
+            >
+              {nativeTorchOn ? <FlashlightOff size={18} /> : <Flashlight size={18} />}
+            </button>
+          )}
+          {inPhotoBurst && torchAvailable && (
+            <button
+              onClick={() => void toggleTorch()}
+              title={torchOn ? 'Turn off flashlight' : 'Turn on flashlight'}
+              className={`absolute top-2 left-14 z-10 rounded-full p-2 transition-colors ${torchOn ? 'bg-amber-400 text-black' : 'bg-black/50 text-white'}`}
+            >
+              {torchOn ? <FlashlightOff size={18} /> : <Flashlight size={18} />}
+            </button>
+          )}
+
           {/* Focus controls for the photo-burst view — this is a real getUserMedia stream (unlike
               the transparent ML Kit scan view above), so the same tap/slider controls the web
               flow gets further down this file apply here too. */}
@@ -589,6 +614,15 @@ export function ScanCapturePage() {
               >
                 <SunMedium size={18} />
               </button>
+              {torchAvailable && (
+                <button
+                  onClick={() => void toggleTorch()}
+                  title={torchOn ? 'Turn off flashlight' : 'Turn on flashlight'}
+                  className={`absolute top-2 left-14 rounded-full p-2 transition-colors ${torchOn ? 'bg-amber-400 text-black' : 'bg-black/50 text-white hover:bg-black/70'}`}
+                >
+                  {torchOn ? <FlashlightOff size={18} /> : <Flashlight size={18} />}
+                </button>
+              )}
               <button
                 onClick={cycleRotation}
                 title="Rotate to match how you're holding the phone"
