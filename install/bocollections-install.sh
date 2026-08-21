@@ -115,6 +115,18 @@ EXPORT_SCHEDULE_DIRECTORY=/opt/bocollections/data/backups
 # in the repo — then: systemctl restart bocollections-backend
 #OLLAMA_BASE_URL=http://192.168.1.x:11434
 #VISION_MODEL=llava-phi3
+# Metadata lookup — all optional, barcode scanning works without any of them (Open Library for
+# books and MusicBrainz for music need no key at all). VIDEO/GAME barcodes are the one real gap:
+# UPCitemdb resolves them to a bare title for free, but TMDB/IGDB is what turns that into actual
+# metadata — without one of those, a VIDEO/GAME scan resolves the barcode and then dead-ends.
+# Uncomment whichever you want, then: systemctl restart bocollections-backend
+#DISCOGS_TOKEN=                 # https://www.discogs.com/settings/developers — improves AUDIO lookup, MusicBrainz covers it either way
+#TMDB_API_KEY=                  # https://developer.themoviedb.org — required for VIDEO metadata beyond a bare title
+#IGDB_CLIENT_ID=                # https://dev.twitch.tv/console/apps — required (with IGDB_CLIENT_SECRET) for GAME metadata beyond a bare title
+#IGDB_CLIENT_SECRET=
+#EBAY_CLIENT_ID=                # https://developer.ebay.com/my/keys — real listing photos for VIDEO/GAME, needs a *production* keyset
+#EBAY_CLIENT_SECRET=
+#THEGAMESDB_API_KEY=            # https://forums.thegamesdb.net/viewforum.php?f=10 — GAME front+back box art, manual approval required
 EOF
 chmod 640 /etc/bocollections/bocollections.env
 chown root:bocollections /etc/bocollections/bocollections.env
