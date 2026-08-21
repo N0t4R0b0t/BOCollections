@@ -59,11 +59,15 @@ function ScanControls({
   const handleCaptureButton = isNative && !inPhotoBurst ? enterPhotoMode : capturePhoto;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const hasGuess = merged.title || merged.publisher || merged.barcode;
+  // Vision-only findings never populate merged.coverUrl (that field only ever comes from an
+  // external LookupResult via a barcode hit) — fall back to an actual captured photo so the
+  // card doesn't show "no cover" for items with photos but no barcode match.
+  const previewPhoto = photos.find((p) => p.angle === 'FRONT') ?? photos[0];
   // What a user would actually notice missing on the shelf-card view: no cover/disc image, or no
   // description to tell items apart. Publisher/year matter less — flagged but not headline.
   const missingFields = hasGuess
     ? [
-        !merged.coverUrl && 'a cover/disc image',
+        !merged.coverUrl && !previewPhoto && 'a cover/disc image',
         !merged.description && 'a description',
         !merged.releaseYear && 'a release year',
       ].filter((v): v is string => !!v)
@@ -84,6 +88,12 @@ function ScanControls({
           <div className="flex gap-3">
             {merged.coverUrl ? (
               <img src={mediaUrl(merged.coverUrl)} alt="" className="w-14 h-14 rounded-lg object-cover border border-indigo-100 shrink-0" />
+            ) : previewPhoto ? (
+              <img
+                src={`data:image/jpeg;base64,${previewPhoto.data}`}
+                alt=""
+                className="w-14 h-14 rounded-lg object-cover border border-indigo-100 shrink-0"
+              />
             ) : (
               <div className="w-14 h-14 rounded-lg border border-dashed border-indigo-300 bg-white shrink-0 flex items-center justify-center text-[10px] text-indigo-300 text-center px-1">
                 no cover
