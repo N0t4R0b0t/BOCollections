@@ -25,8 +25,6 @@ export type ModuleStatus = 'unknown' | 'checking' | 'installing' | 'ready' | 'un
 export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Options) {
   const [status, setStatus] = useState<BarcodeDetectorStatus>('idle');
   const [moduleStatus, setModuleStatus] = useState<ModuleStatus>('unknown');
-  const [torchAvailable, setTorchAvailable] = useState(false);
-  const [torchOn, setTorchOn] = useState(false);
   const lastDetectedRef = useRef<{ value: string; ts: number } | null>(null);
   const listenerRef = useRef<PluginListenerHandle | null>(null);
   const confirmRef = useRef(createRepeatConfirmer());
@@ -95,29 +93,7 @@ export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Opti
     await BarcodeScanner.startScan({ formats: FORMATS });
     setBodyTransparent(true);
     setStatusTracked('scanning');
-    // Real plugin API (unlike focus) — a flash unit is standard on every rear camera we'd expect
-    // this app to run on, but still probed rather than assumed. Each session starts with the
-    // torch off regardless of its state before a restart (see refocusScanner), so local state is
-    // reset here rather than trusted to have survived the stop/start.
-    setTorchOn(false);
-    try {
-      const { available } = await BarcodeScanner.isTorchAvailable();
-      setTorchAvailable(available);
-    } catch (e) {
-      console.warn('[native-scanner] isTorchAvailable failed', e);
-      setTorchAvailable(false);
-    }
   }, [setStatusTracked]);
-
-  const toggleTorch = useCallback(async () => {
-    if (statusRef.current !== 'scanning' || !torchAvailable) return;
-    try {
-      await BarcodeScanner.toggleTorch();
-      setTorchOn((v) => !v);
-    } catch (e) {
-      console.warn('[native-scanner] toggleTorch failed', e);
-    }
-  }, [torchAvailable]);
 
   const start = useCallback(async () => {
     if (statusRef.current === 'scanning') return;
@@ -155,7 +131,6 @@ export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Opti
     await BarcodeScanner.stopScan();
     setBodyTransparent(false);
     setStatusTracked('paused');
-    setTorchOn(false);
   }, [setStatusTracked]);
 
   /**
@@ -171,28 +146,16 @@ export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Opti
   const refocusScanner = useCallback(async () => {
     if (statusRef.current !== 'scanning' || refocusingRef.current) return;
     refocusingRef.current = true;
-    // startSession() unconditionally resets torch state to off (a fresh session starts with the
-    // flash off) — remembered here so a torch the user had on before tapping to refocus comes
-    // back on after the restart instead of silently going dark.
-    const hadTorchOn = torchOn;
     try {
       await BarcodeScanner.stopScan();
       await new Promise((r) => setTimeout(r, 300));
       await startSession();
-      if (hadTorchOn) {
-        try {
-          await BarcodeScanner.toggleTorch();
-          setTorchOn(true);
-        } catch (e) {
-          console.warn('[native-scanner] re-enabling torch after refocus failed', e);
-        }
-      }
     } catch (e) {
       console.warn('[native-scanner] refocus (restart) failed', e);
     } finally {
       refocusingRef.current = false;
     }
-  }, [startSession, torchOn]);
+  }, [startSession]);
 
   const resume = useCallback(async () => {
     if (statusRef.current !== 'paused') return;
@@ -229,5 +192,5 @@ export function useNativeBarcodeDetector({ onDetected, debounceMs = 1500 }: Opti
     setBodyTransparent(false);
   }, []);
 
-  return { isSupported: true, status, moduleStatus, start, pause, resume, refocusScanner, torchAvailable, torchOn, toggleTorch };
+  return { isSupported: true, status, moduleStatus, start, pause, resume, refocusScanner };
 }

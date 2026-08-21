@@ -175,8 +175,7 @@ export function useCaptureLoop(sessionId: number, collectionId: number, category
   const videoRef = useRef<HTMLVideoElement>(null);
   const {
     ready: cameraReady, error: cameraError, start: startCamera, stop: stopCamera, captureFrame,
-    refocus, supportedFocusModes, focusDistanceRange, focusDistanceValue, setFocusDistance,
-    lowLight, toggleLowLight, torchAvailable, torchOn, toggleTorch,
+    refocus, supportedFocusModes,
   } = useCamera(videoRef);
   const { createDraft, updateDraft, discardDraft } = useScanSessionStore();
   const currentBatchRef = useRef<Batch>(makeBatch(0));
@@ -327,7 +326,7 @@ export function useCaptureLoop(sessionId: number, collectionId: number, category
 
   const {
     start: startDetector, pause: pauseDetector, resume: resumeDetector, status: detectorStatus, moduleStatus,
-    refocusScanner, torchAvailable: nativeTorchAvailable, torchOn: nativeTorchOn, toggleTorch: toggleNativeTorch,
+    refocusScanner,
   } = useScannerBarcodeDetector(videoRef, { onDetected: onBarcodeDetected, debounceMs: 1500, rotation });
 
   // True from the first photo of a capture burst until resumeScanning() (see below) explicitly
@@ -715,17 +714,6 @@ export function useCaptureLoop(sessionId: number, collectionId: number, category
     refocus,
     refocusScanner,
     supportedFocusModes,
-    focusDistanceRange,
-    focusDistanceValue,
-    setFocusDistance,
-    lowLight,
-    toggleLowLight,
-    torchAvailable,
-    torchOn,
-    toggleTorch,
-    nativeTorchAvailable,
-    nativeTorchOn,
-    toggleNativeTorch,
     capturePhoto,
     enterPhotoMode,
     removePhoto,

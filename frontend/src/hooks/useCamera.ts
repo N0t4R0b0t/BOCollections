@@ -8,23 +8,12 @@ import { apiClient } from '../api/apiClient';
  * @param videoRef - ref to the <video> element that will display the feed
  * @returns ready, error, start(), stop(), captureFrame()
  */
-// focusMode/focusDistance aren't in the standard lib.dom.d.ts MediaTrackConstraintSet/Capabilities
-// (they're part of the Image Capture extensions, unevenly supported), so we type them ourselves
-// rather than fight TS with `as unknown as` everywhere they're touched.
+// focusMode isn't in the standard lib.dom.d.ts MediaTrackConstraintSet/Capabilities (it's part of
+// the Image Capture extensions, unevenly supported), so we type it ourselves rather than fight TS
+// with `as unknown as` everywhere it's touched.
 interface FocusCapabilities {
   focusMode?: string[];
-  focusDistance?: { min: number; max: number; step: number };
-  torch?: boolean;
 }
-
-export interface FocusDistanceRange { min: number; max: number; step: number; }
-
-// A plain CSS filter, applied both live (as the <video>'s style, so the boost is visible while
-// framing the shot) and baked into captureFrame's canvas draw (via drawRotatedFrame's `filter`
-// param, so a saved photo matches what was on screen) — no per-pixel processing needed since the
-// browser's own compositor already does this in real time. Values picked for "dim room, not
-// pitch black": strong enough to matter, not so strong it blows out anything already lit.
-export const LOW_LIGHT_FILTER = 'brightness(1.5) contrast(1.15) saturate(1.1)';
 
 export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const streamRef = useRef<MediaStream | null>(null);
@@ -33,15 +22,6 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
   // null = not checked yet, [] = checked and camera reports no focus control at all (fixed-focus
   // lens, or the browser doesn't expose MediaStreamTrack.getCapabilities — Safari, mostly).
   const [supportedFocusModes, setSupportedFocusModes] = useState<string[] | null>(null);
-  // Some cameras (confirmed on a real device here) only expose focusMode: ['manual'] — no
-  // continuous/single-shot at all — but back it with a real focusDistance range, which is a much
-  // more reliable knob than hoping the browser's autofocus sweep ever kicks in.
-  const [focusDistanceRange, setFocusDistanceRange] = useState<FocusDistanceRange | null>(null);
-  const [focusDistanceValue, setFocusDistanceValue] = useState<number | null>(null);
-  const [lowLight, setLowLight] = useState(false);
-  const toggleLowLight = useCallback(() => setLowLight((v) => !v), []);
-  const [torchAvailable, setTorchAvailable] = useState(false);
-  const [torchOn, setTorchOn] = useState(false);
 
   const applyFocusMode = useCallback(async (mode: 'continuous' | 'single-shot') => {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -51,21 +31,6 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
       return true;
     } catch (e) {
       console.warn(`[camera] applyConstraints(focusMode: ${mode}) failed`, e);
-      return false;
-    }
-  }, []);
-
-  const setFocusDistance = useCallback(async (value: number) => {
-    const track = streamRef.current?.getVideoTracks()[0];
-    if (!track) return false;
-    try {
-      await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: value }] } as unknown as MediaTrackConstraints);
-      setFocusDistanceValue(value);
-      void apiClient.debugLog({ event: 'set-focus-distance', value, applied: true });
-      return true;
-    } catch (e) {
-      console.warn('[camera] applyConstraints(focusDistance) failed', e);
-      void apiClient.debugLog({ event: 'set-focus-distance', value, applied: false, error: String(e) });
       return false;
     }
   }, []);
@@ -85,25 +50,14 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
       console.info('[camera] focus capabilities', capabilities, 'modes:', modes);
       void apiClient.debugLog({ event: 'camera-capabilities', capabilities, focusModes: modes, userAgent: navigator.userAgent });
       setSupportedFocusModes(modes);
-      setTorchAvailable(!!capabilities?.torch);
-      setTorchOn(false);
       if (modes.includes('continuous')) {
         // Applying it as a live constraint on the track (rather than only in the initial
         // getUserMedia call above) is more reliable across browsers — some only honour
         // focus-related constraints when set this way, after the track already exists.
         const applied = await applyFocusMode('continuous');
         void apiClient.debugLog({ event: 'apply-continuous-focus', applied });
-      } else if (modes.includes('manual') && capabilities?.focusDistance) {
-        const range = capabilities.focusDistance;
-        setFocusDistanceRange(range);
-        // We don't actually know which end of the range means "near" vs "far" — that's not
-        // standardized and varies by device — so start at the midpoint and let the slider (with
-        // the live preview right above it) make it obvious which direction sharpens the image.
-        const initial = (range.min + range.max) / 2;
-        const applied = await setFocusDistance(initial);
-        void apiClient.debugLog({ event: 'apply-initial-focus-distance', range, initial, applied });
       }
-      // If neither is in the capability list at all, this camera/browser doesn't support focus
+      // If continuous isn't in the capability list, this camera/browser doesn't support focus
       // control from the web at all — no constraint syntax will change that.
 
       if (videoRef.current) {
@@ -120,30 +74,14 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Camera access denied');
     }
-  }, [videoRef, applyFocusMode, setFocusDistance]);
+  }, [videoRef, applyFocusMode]);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setReady(false);
     setSupportedFocusModes(null);
-    setTorchAvailable(false);
-    setTorchOn(false);
   }, []);
-
-  // Same Image Capture extension family as focusMode/focusDistance above — a device without a
-  // rear flash (or a browser that doesn't surface it) just leaves torchAvailable false, so
-  // callers can skip rendering the control entirely rather than showing a button that no-ops.
-  const toggleTorch = useCallback(async () => {
-    const track = streamRef.current?.getVideoTracks()[0];
-    if (!track || !torchAvailable) return;
-    try {
-      await track.applyConstraints({ advanced: [{ torch: !torchOn }] } as unknown as MediaTrackConstraints);
-      setTorchOn((v) => !v);
-    } catch (e) {
-      console.warn('[camera] applyConstraints(torch) failed', e);
-    }
-  }, [torchAvailable, torchOn]);
 
   /**
    * On-demand refocus for cameras that don't support continuous AF (or where it's stuck) —
@@ -194,7 +132,7 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
     if (video.videoWidth === 0 || video.videoHeight === 0) return null;
 
     let canvas = document.createElement('canvas');
-    const ctx = drawRotatedFrame(video, canvas, rotation, lowLight ? LOW_LIGHT_FILTER : 'none');
+    const ctx = drawRotatedFrame(video, canvas, rotation);
     if (!ctx) return null;
 
     if (maxDimension && (canvas.width > maxDimension || canvas.height > maxDimension)) {
@@ -208,13 +146,9 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
 
     // Split off the "data:image/jpeg;base64," prefix — callers only need the raw base64
     return canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null;
-  }, [videoRef, lowLight]);
+  }, [videoRef]);
 
   useEffect(() => () => { stop(); }, [stop]);
 
-  return {
-    ready, error, start, stop, captureFrame, refocus, supportedFocusModes,
-    focusDistanceRange, focusDistanceValue, setFocusDistance, lowLight, toggleLowLight,
-    torchAvailable, torchOn, toggleTorch,
-  };
+  return { ready, error, start, stop, captureFrame, refocus, supportedFocusModes };
 }
