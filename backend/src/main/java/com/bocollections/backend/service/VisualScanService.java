@@ -276,12 +276,27 @@ public class VisualScanService {
                         new Prompt(List.of(message), buildOptions(endpoint.config().getProvider(), model)));
                 return response.getResult().getOutput().getText();
             } catch (Exception e) {
-                log.warn("Vision call to endpoint '{}' (model {}) failed for {} task: {}",
-                        endpoint.name(), model, task, e.getMessage());
-                failures.append(endpoint.name()).append(": ").append(e.getMessage()).append("; ");
+                // e.getMessage() alone is often a useless top-level wrapper (Spring AI's Google
+                // GenAI client throws a generic "Failed to generate content" with the actual
+                // reason — bad API key, quota, safety filter, oversized payload — buried in the
+                // cause chain, never logged anywhere). Log the full exception for the stack
+                // trace, and surface the deepest cause's message in both the log line and the
+                // failures string so a real diagnosis doesn't require reproducing the failure.
+                String rootCause = rootCauseMessage(e);
+                log.warn("Vision call to endpoint '{}' (model {}) failed for {} task: {} (root cause: {})",
+                        endpoint.name(), model, task, e.getMessage(), rootCause, e);
+                failures.append(endpoint.name()).append(": ").append(rootCause).append("; ");
             }
         }
         throw new VisionUnavailableException("All vision endpoints failed — " + failures);
+    }
+
+    private static String rootCauseMessage(Throwable e) {
+        Throwable cause = e;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause.getMessage() != null ? cause.getMessage() : cause.toString();
     }
 
     static ChatOptions buildOptions(VisionProvider provider, String model) {
